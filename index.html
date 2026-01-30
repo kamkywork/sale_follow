@@ -136,8 +136,9 @@
             
             <input type="date" id="filterDate" class="date-input" onchange="loadData()">
             <button class="btn-icon btn-refresh" onclick="loadData()"><i class="fas fa-sync-alt"></i></button>
-            <button class="btn-pill btn-daily" onclick="showSummary('daily')"><i class="fas fa-bolt"></i> สรุปวัน</button>
-            <button class="btn-pill btn-monthly" onclick="showSummary('monthly')"><i class="fas fa-calendar-check"></i> สรุปเดือน</button>
+            
+            <button class="btn-pill" style="background: linear-gradient(135deg, #1e3c72, #2a5298);" onclick="showAllContracts()"><i class="fas fa-list"></i> ดูสัญญาทั้งหมด</button>
+            
             <button class="btn-pill btn-closed" onclick="showClosedContracts()"><i class="fas fa-check-double"></i> ปิด/ครบงวด</button>
             <button id="btnExpense" class="btn-pill btn-expense" style="display:none;" onclick="recordExpense()"><i class="fas fa-file-invoice-dollar"></i> บันทึกรายจ่าย</button>
 
@@ -146,6 +147,17 @@
             <button id="btnReset" class="btn-icon btn-reset" onclick="resetHidden()"><i class="fas fa-eye"></i></button>
             
             <button id="btnAdmin" class="btn-icon" style="background:#2c3e50; display:none;" onclick="manageUsers()" title="จัดการผู้ใช้"><i class="fas fa-users-cog"></i></button>
+        </div>
+    </div>
+
+    <div id="adminDashboard" class="perf-container" style="display:none; background:#f0f3f4; border-bottom:1px solid #ddd; padding-bottom:10px; margin-bottom: 0;">
+        <div class="stat-card" style="border-left: 5px solid #e74c3c;">
+            <div class="stat-header"><i class="fas fa-box-open" style="color:#e74c3c"></i> <span>ต้นทุนรวม (Cost)</span></div>
+            <div class="stat-body"><h1 id="txtTotalCost" class="big-number" style="color:#e74c3c; font-size:32px;">0</h1><span class="unit-text">บาท</span></div>
+        </div>
+        <div class="stat-card" style="border-left: 5px solid #27ae60;">
+            <div class="stat-header"><i class="fas fa-chart-line" style="color:#27ae60"></i> <span>กำไรสุทธิ (Profit)</span></div>
+            <div class="stat-body"><h1 id="txtNetProfit" class="big-number" style="color:#27ae60; font-size:32px;">0</h1><span class="unit-text">บาท (ขาย - ทุน)</span></div>
         </div>
     </div>
 
@@ -163,7 +175,7 @@
             <div class="stat-header"><i class="fas fa-coins" style="color:gold"></i> <span>ค่าคอมมิชชั่น (20%)</span></div>
             <div class="stat-body"><h1 id="txtCommission" class="big-number" style="color:gold;">0</h1><span class="unit-text">บาท (สะสมเดือนนี้)</span></div>
         </div>
-        </div>
+    </div>
 
     <div class="list-container">
         <div id="searchResultTitle" style="display:none; margin-bottom:10px; font-weight:bold; color:var(--primary);">ผลการค้นหา: <span id="txtSearchKeyword"></span> <button onclick="clearSearch()" style="background:#ddd; border:none; padding:3px 8px; border-radius:5px; cursor:pointer; font-size:12px;">ล้าง</button></div>
@@ -220,17 +232,15 @@
         }
 
         async function loadData() {
-            if (!currentUser) return; // ถ้ายังไม่ login ไม่ต้องโหลด
+            if (!currentUser) return; 
             
             const dateInput = document.getElementById('filterDate');
             if (!dateInput.value) dateInput.valueAsDate = new Date();
             const date = dateInput.value;
 
-            // แสดงสถานะกำลังโหลด
             document.getElementById('contractList').innerHTML = '<div class="loading-state"><i class="fas fa-spinner fa-spin"></i> กำลังโหลดข้อมูล...</div>';
 
             try {
-                // ส่ง currentUser ไปด้วย เพื่อให้ Backend กรองข้อมูลตามสิทธิ์
                 const response = await fetch(API_URL, { 
                     method: 'POST', 
                     body: JSON.stringify({ 
@@ -274,7 +284,7 @@
         }
 
         // ==========================================
-        // ✅ NEW: ฟังก์ชันจัดการผู้ใช้ (User Management)
+        // ✅ User Management
         // ==========================================
         async function manageUsers() {
             if (!currentUser || currentUser.role !== 'admin') return Swal.fire('Error', 'Access Denied', 'error');
@@ -295,7 +305,6 @@
                 }).then((r) => { if (r.isConfirmed) addUser(); });
 
             } catch (e) {
-                // หากยังไม่ได้เขียนฟังก์ชันฝั่ง Backend (Google Apps Script)
                 Swal.fire({icon:'warning', title:'แจ้งเตือน', text:'ยังไม่พบฟังก์ชัน get_users ใน Script (แต่สามารถลองกดเพิ่มได้)', confirmButtonText:'+ เพิ่มผู้ใช้ใหม่', showCancelButton:true}).then(r=>{ if(r.isConfirmed) addUser(); });
             }
         }
@@ -336,6 +345,7 @@
             if(!keyword) return;
             isSearchMode = true;
             document.getElementById('statContainer').style.display = 'none';
+            document.getElementById('adminDashboard').style.display = 'none';
             document.getElementById('polygonContainer').style.display = 'none';
             document.getElementById('searchResultTitle').style.display = 'block';
             document.getElementById('txtSearchKeyword').innerText = keyword;
@@ -360,10 +370,58 @@
             filteredData = closedList.map(c => { let amt = parseFloat(c.amount || 0); return { ...c, finalAmount: amt, hasPostpone: false }; });
             isSearchMode = true;
             document.getElementById('statContainer').style.display = 'none';
+            document.getElementById('adminDashboard').style.display = 'none';
             document.getElementById('polygonContainer').style.display = 'none';
             document.getElementById('searchResultTitle').style.display = 'block';
             document.getElementById('txtSearchKeyword').innerText = `รายการปิดสัญญา/ครบงวด (${closedList.length} รายการ)`;
             renderDirectList(closedList);
+        }
+
+        // ✅ ฟังก์ชันแสดงสัญญาทั้งหมด (เรียงสถานะ)
+        function showAllContracts() {
+            if(!currentTrackingData || currentTrackingData.length === 0) { alert('กำลังโหลดข้อมูล...'); return; }
+            
+            isSearchMode = true;
+            document.getElementById('statContainer').style.display = 'none';
+            document.getElementById('adminDashboard').style.display = 'none';
+            document.getElementById('polygonContainer').style.display = 'none';
+            document.getElementById('searchResultTitle').style.display = 'block';
+            document.getElementById('contractListHeading').style.display = 'none';
+            document.getElementById('txtSearchKeyword').innerText = `สัญญาทั้งหมด (${currentTrackingData.length} รายการ) - เรียงตามสถานะ`;
+
+            // เรียงลำดับข้อมูล: ปกติ -> ค้าง -> ปิดยอด -> หนี้เสีย
+            let sortedData = [...currentTrackingData].sort((a, b) => {
+                const getPriority = (c) => {
+                    const isClosed = (c.status === 'Paid' || c.status === 'Close');
+                    const isBadDebt = (c.overdue_count >= 3); 
+                    
+                    if (isBadDebt) return 4;
+                    if (isClosed) return 3;
+                    if (c.overdue_count > 0) return 2;
+                    return 1; // Normal
+                };
+                return getPriority(a) - getPriority(b);
+            });
+
+            // แปลงข้อมูลและเติมสถานะท้ายชื่อ
+            filteredData = sortedData.map(c => {
+                let amt = parseFloat(c.amount || 0) * (c.overdue_count > 1 ? c.overdue_count : 1);
+                let statusSuffix = "";
+                
+                if (c.overdue_count >= 3) statusSuffix = " (หนี้เสีย)";
+                else if (c.status === 'Paid' || c.status === 'Close') statusSuffix = " (ปิดยอด)";
+                else if (c.overdue_count > 0) statusSuffix = ` (ค้าง ${c.overdue_count})`;
+                else statusSuffix = " (ปกติ)";
+
+                return { 
+                    ...c, 
+                    b_name: `${c.b_name} <span style="font-size:12px; font-weight:bold; color:${statusSuffix.includes('ปกติ')?'green':(statusSuffix.includes('ปิด')?'blue':'red')}">${statusSuffix}</span>`,
+                    finalAmount: amt, 
+                    hasPostpone: (c.postpone_date && c.postpone_date !== "-" && c.postpone_date !== "") 
+                };
+            });
+
+            renderDirectList(filteredData);
         }
 
         function renderDashboard(data, selectedDate, forceShowAll) {
@@ -381,6 +439,17 @@
             let strictDailyCollected = 0; let strictMonthlyCollected = 0;
             const isAdmin = (currentUser && currentUser.role === 'admin');
 
+            // ✅ แสดง Admin Dashboard ถ้าเป็น Admin
+            if (isAdmin) {
+                document.getElementById('adminDashboard').style.display = 'grid';
+                if (data.summary) {
+                    document.getElementById('txtTotalCost').innerText = (data.summary.total_cost || 0).toLocaleString();
+                    document.getElementById('txtNetProfit').innerText = (data.summary.net_profit || 0).toLocaleString();
+                }
+            } else {
+                document.getElementById('adminDashboard').style.display = 'none';
+            }
+
             if (data.contracts) {
                 data.contracts.forEach(c => {
                     const amount = parseFloat(c.amount || 0);
@@ -391,7 +460,6 @@
                     const isPendingStatus = ['Pending_Approve', 'รอตรวจสอบ', 'รอปิดยอด'].includes(c.status);
                     let isTargetToday = (isPostponedToToday) || (isDueToday && !hasPostpone);
                     
-                    // คำนวณยอด
                     if (isTargetToday && isPaid) strictDailyCollected += amount;
                     if (c.due_date) { const parts = c.due_date.split('/'); if(parts.length === 3) { const cMonthStr = `${parts[2]}-${parts[1]}`; if (cMonthStr === selectedMonthStr && isPaid) strictMonthlyCollected += amount; } }
                     
@@ -409,16 +477,12 @@
                 });
             }
             
-            // อัปเดตตัวเลข Dashboard (Daily / Monthly)
             updateCharts(0, strictDailyCollected, 0, strictMonthlyCollected);
 
-            // ✅ ส่วนที่เพิ่ม: แสดงยอดคอมมิชชั่นจาก Backend
-if (data.summary && data.summary.commission !== undefined) {
-     const commEl = document.getElementById('txtCommission');
-     // เพิ่ม ( ... || 0) เพื่อกันค่า null
-     if(commEl) commEl.innerText = (data.summary.commission || 0).toLocaleString(); 
-}
-            // ----------------------------------------------------
+            if (data.summary && data.summary.commission !== undefined) {
+                 const commEl = document.getElementById('txtCommission');
+                 if(commEl) commEl.innerText = (data.summary.commission || 0).toLocaleString(); 
+            }
 
             if (contractGroups.pending.length > 0 && isAdmin) { polyContainer.innerHTML += createPolygonHtml('pending', 'รอตรวจสอบ', contractGroups.pending.length, 'poly-bg-pending', 'fas fa-clock'); }
             polyContainer.innerHTML += createPolygonHtml('normal', 'ปกติ (วันนี้)', contractGroups.normal.length, 'poly-bg-normal', 'fas fa-calendar-check');
@@ -545,47 +609,6 @@ if (data.summary && data.summary.commission !== undefined) {
 
         function openPostpone(idx, name, currentVal) { Swal.fire({ title: 'จัดการนัดหมาย', html: `<div style="margin-bottom:10px;">เดิม: <b>${currentVal || '-'}</b></div><input type="date" id="swal-date" class="swal2-input">`, showDenyButton: true, showCancelButton: true, confirmButtonText: 'บันทึก', denyButtonText: 'ลบนัดหมาย', cancelButtonText: 'ปิด' }).then(r => { if (r.isConfirmed) executeAction({ action: 'postpone', row_index: idx, new_date: document.getElementById('swal-date').value }); else if (r.isDenied) executeAction({ action: 'postpone', row_index: idx, new_date: '' }); }); }
         
-        // --- FIXED: ฟังก์ชันรายงานสรุป ---
-        function showSummary(type) { Swal.fire({ title: `สรุป${type==='daily'?'รายวัน':'รายเดือน'}`, showCancelButton:true, confirmButtonText:'เปิดรายงาน' }).then(r=>{if(r.isConfirmed) printSummaryReport(type)}); }
-        
-        function printSummaryReport(type) {
-            const rawDate = document.getElementById('filterDate').value;
-            const dateStr = formatDateToThai(rawDate);
-            let dateObj = new Date(rawDate);
-            let yearTH = dateObj.getFullYear() + 543;
-            const monthNames = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
-            const monthStr = monthNames[dateObj.getMonth()];
-            const currentMonthStr = `${yearTH}-${(dateObj.getMonth()+1).toString().padStart(2,'0')}`;
-            let listPaid = [], listDue = [], listOverdue = [], listOldOverdue = []; let totalOldOverdue = 0;
-            currentTrackingData.forEach(c => {
-                const amount = parseFloat(c.amount);
-                let cDateParts = c.due_date.split('/'); let cMonthStr = cDateParts.length === 3 ? `${cDateParts[2]}-${cDateParts[1]}` : ''; 
-                let isPaid = ['Paid', 'Close', 'รอปิดยอด'].includes(c.status);
-                if (!isPaid && cMonthStr < currentMonthStr && cMonthStr !== '') { listOldOverdue.push(c); totalOldOverdue += amount; }
-                let isTargetDay = false; if(c.postpone_date === dateStr) isTargetDay = true; else if(c.due_date === dateStr && (!c.postpone_date || c.postpone_date==='-')) isTargetDay = true; else if(isPaid && (c.update_date === dateStr || c.last_payment_date === dateStr)) isTargetDay = true;
-                let includeInReport = false; if (type === 'daily') { if (isTargetDay) includeInReport = true; } else { if (cMonthStr === currentMonthStr) includeInReport = true; if (!isPaid && cMonthStr < currentMonthStr) includeInReport = true; }
-                if (includeInReport) { if (isPaid) listPaid.push(c); else if (c.overdue_count > 0 || (cMonthStr < currentMonthStr)) listOverdue.push(c); else listDue.push(c); }
-            });
-
-            let card1_Label, card1_Val, card1_Color = "bg-red"; let card2_Label, card2_Val, card2_Color = "bg-blue"; let card3_Label, card3_Val, card3_Color = "bg-green"; let card4_Label, card4_Val, card4_Color = "bg-orange"; let percent = 0;
-            if (type === 'monthly') {
-                let totalMonthTarget = 0, totalMonthCollected = 0;
-                currentTrackingData.forEach(c => { let cDateParts = c.due_date.split('/'); let cMonthStr = cDateParts.length === 3 ? `${cDateParts[2]}-${cDateParts[1]}` : ''; if (cMonthStr === currentMonthStr) { totalMonthTarget += parseFloat(c.amount); if (['Paid', 'Close', 'รอปิดยอด'].includes(c.status)) totalMonthCollected += parseFloat(c.amount); } });
-                let remaining = totalMonthTarget - totalMonthCollected; percent = totalMonthTarget > 0 ? ((totalMonthCollected/totalMonthTarget)*100).toFixed(1) : 0;
-                card1_Label = "ค้างยกมา"; card1_Val = totalOldOverdue; card2_Label = "เป้าเดือนนี้"; card2_Val = totalMonthTarget; card3_Label = "เก็บได้รวม"; card3_Val = totalMonthCollected; card4_Label = "เหลือเก็บ"; card4_Val = Math.max(0, remaining);
-            } else {
-                let todayTarget = listPaid.reduce((a,b)=>a+parseFloat(b.amount),0) + listDue.reduce((a,b)=>a+parseFloat(b.amount),0) + listOverdue.reduce((a,b)=>a+parseFloat(b.amount),0); 
-                let todayCollected = listPaid.reduce((a,b)=>a+(parseFloat(b.amount_paid||b.amount)),0); let todayRemaining = Math.max(0, todayTarget - todayCollected); percent = todayTarget > 0 ? ((todayCollected/todayTarget)*100).toFixed(1) : 0;
-                card1_Label = "ค้างสะสม (เก่า)"; card1_Val = totalOldOverdue; card2_Label = "เป้าวันนี้"; card2_Val = todayTarget; card3_Label = "เก็บได้วันนี้"; card3_Val = todayCollected; card4_Label = "เหลือเก็บวันนี้"; card4_Val = todayRemaining;
-            }
-
-            const fileName = `Report_${type}_${dateStr.replace(/\//g,'-')}`;
-            const style = `<style> @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;700;800&display=swap'); body { font-family: 'Sarabun', sans-serif; padding: 20px; background: #f8f9fa; color: #333; } .report-box { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.05); max-width: 900px; margin: 0 auto; } .header-title { text-align: center; margin-bottom: 30px; } .header-title h2 { margin: 0; font-size: 22px; color: #2b2d42; font-weight: 800; } .summary-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 20px; } .card { border-radius: 10px; padding: 20px 10px; text-align: center; color: white; } .card h3 { margin: 0 0 5px 0; font-size: 14px; opacity: 0.95; } .card h2 { margin: 0; font-size: 26px; font-weight: 800; } .bg-red { background-color: #e74c3c; } .bg-blue { background-color: #4361ee; } .bg-green { background-color: #0abde3; } .bg-orange { background-color: #8e44ad; } .percent-text { text-align: center; color: #4361ee; font-weight: 700; font-size: 14px; margin-bottom: 30px; } table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; margin-bottom: 20px; } th { background: #eee; padding: 8px; border: 1px solid #ddd; text-align: left; } td { padding: 8px; border: 1px solid #ddd; vertical-align: middle; } .section-head { margin-top: 15px; font-size: 15px; font-weight: bold; padding: 5px 10px; background: #f8f9fa; border-left: 5px solid #ccc; } .text-right { text-align: right; } .text-center { text-align: center; } .hide-on-print { margin-top:20px; text-align:center; display:flex; justify-content:center; gap:10px; } @media print { .hide-on-print { display: none; } body { background: white; } .report-box { box-shadow: none; padding:0; } } </style>`;
-            const createRows = (list) => { if(list.length === 0) return `<tr><td colspan="5" class="text-center" style="color:#999;">- ไม่มีรายการ -</td></tr>`; return list.map((i, idx) => `<tr><td class="text-center">${idx+1}</td><td>${i.c_no} <br><span style="font-size:11px; color:#666;">${i.b_name}</span></td><td class="text-right">${parseFloat(i.amount).toLocaleString()}</td><td class="text-center">${i.status}</td><td>${i.last_note || ''}</td></tr>`).join(''); };
-            const htmlContent = `<div class="report-box" id="captureArea"><div class="header-title"><h2><i class="fas fa-chart-bar"></i> สรุป${type==='daily'?'ประจำวัน':'ประจำเดือน'}</h2><span>เดือน: ${monthStr} ${yearTH} ${type==='daily' ? '(วันที่: ' + dateStr + ')' : ''}</span></div><div class="summary-grid"><div class="card ${card1_Color}"><h3>${card1_Label}</h3><h2>${card1_Val.toLocaleString()}</h2></div><div class="card ${card2_Color}"><h3>${card2_Label}</h3><h2>${card2_Val.toLocaleString()}</h2></div><div class="card ${card3_Color}"><h3>${card3_Label}</h3><h2>${card3_Val.toLocaleString()}</h2></div><div class="card ${card4_Color}"><h3>${card4_Label}</h3><h2>${card4_Val.toLocaleString()}</h2></div></div><div class="percent-text">ความสำเร็จ: ${percent}%</div><div class="section-head" style="color:#198754;">1. รายการชำระแล้ว (Paid)</div><table><thead><tr><th width="5%">#</th><th width="30%">สัญญา/ชื่อ</th><th width="15%" class="text-right">ยอด</th><th width="20%" class="text-center">สถานะ</th><th width="30%">หมายเหตุ</th></tr></thead><tbody>${createRows(listPaid)}</tbody></table><div class="section-head" style="color:#b58900;">2. รายการครบกำหนด (Due)</div><table><thead><tr><th width="5%">#</th><th width="30%">สัญญา/ชื่อ</th><th width="15%" class="text-right">ยอด</th><th width="20%" class="text-center">สถานะ</th><th width="30%">หมายเหตุ</th></tr></thead><tbody>${createRows(listDue)}</tbody></table><div class="section-head" style="color:#dc3545;">3. รายการค้างชำระ (Overdue)</div><table><thead><tr><th width="5%">#</th><th width="30%">สัญญา/ชื่อ</th><th width="15%" class="text-right">ยอด</th><th width="20%" class="text-center">สถานะ</th><th width="30%">หมายเหตุ</th></tr></thead><tbody>${createRows(listOverdue)}</tbody></table></div>`;
-            let win = window.open('', '_blank'); win.document.write(`<html><head><title>${fileName}</title><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">${style}<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"><\/script></head><body>${htmlContent}<div class="hide-on-print"><button onclick="window.print()" style="padding:10px 20px; cursor:pointer; background:#2b2d42; color:white; border:none; border-radius:5px;">🖨️ พิมพ์รายงาน</button></div></body></html>`); win.document.close();
-        }
-
         async function openContractPopup(cNo) { Swal.fire({ title: 'กำลังโหลด...', allowOutsideClick: false, didOpen: () => Swal.showLoading() }); try { const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'get_contract_image', c_no: String(cNo) }) }); const d = await res.json(); if(d.status === 'success') { let fileId = ""; if(d.url.includes("id=")) { fileId = d.url.split('id=')[1].split('&')[0]; } if(fileId) { let previewUrl = `https://drive.google.com/file/d/${fileId}/preview`; Swal.fire({ html: `<div style="position:relative; padding-bottom:10px;"><iframe src="${previewUrl}" width="100%" height="450px" style="border:none; border-radius:8px;"></iframe></div>`, width: '600px', showCloseButton: true, confirmButtonText: 'ปิด', footer: `<a href="${d.url}" target="_blank" style="color:#4361ee; font-weight:bold; text-decoration:underline;">หากรูปไม่ขึ้น คลิกที่นี่เพื่อเปิดแอป Drive</a>` }); } else { Swal.fire({ imageUrl: d.url, width: '95%', confirmButtonText: 'ปิด' }); } } else { Swal.fire({ icon: 'warning', title: 'ไม่พบไฟล์รูปสัญญา' }); } } catch(e) { Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาดในการโหลด' }); } }
         async function openContactImage(cNo) { Swal.showLoading(); try { const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'get_contract_image', c_no: cNo, type: 'contact_aw' }) }); const d = await res.json(); if(d.status==='success') { let fileId = ""; if(d.url.includes("id=")) { fileId = d.url.split('id=')[1].split('&')[0]; } if(fileId) { let previewUrl = `https://drive.google.com/file/d/${fileId}/preview`; Swal.fire({ html: `<iframe src="${previewUrl}" width="100%" height="450px" style="border:none; border-radius:8px;"></iframe>`, width: '600px', showCloseButton: true, confirmButtonText: 'ปิด' }); } else { Swal.fire({ imageUrl: d.url, width: '95%', confirmButtonText: 'ปิด' }); } } else Swal.fire({ icon: 'warning', title: 'ไม่พบข้อมูลเพิ่มเติม (AW)' }); } catch(e) { Swal.fire('Error', 'ผิดพลาด'); } }
         function formatDateToThai(dateString) { if(!dateString) return ""; const p = dateString.split('-'); let year = parseInt(p[0]) + 543; return `${p[2]}/${p[1]}/${year}`; }
