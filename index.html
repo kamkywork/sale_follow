@@ -185,7 +185,7 @@
     </div>
 
     <script>
-        const API_URL = 'https://script.google.com/macros/s/AKfycbydz1RXxo27GhzwmIVED0nNLLskpHwEPT64jxXMxyjcX3f-DbEvLTuk2aTKFR9z9x61/exec'; 
+        const API_URL = 'https://script.google.com/macros/s/AKfycbz3oeGl9Fn_KFCumaoUWkyYXu3uAHvZADi9KVr8ELvB8itkRMnMVCnRUOKxa_FEzJOwHA/exec'; 
         let currentUser = null;
         let currentTrackingData = [], filteredData = [], globalSummary = {};
         let contractGroups = {}; 
@@ -266,22 +266,65 @@
         }
 
         async function recordExpense() {
-            if(!currentUser || currentUser.role !== 'admin') return Swal.fire('Access Denied', 'เฉพาะผู้ดูแลระบบเท่านั้น', 'warning');
-            const { value: formValues } = await Swal.fire({
-                title: 'บันทึกรายจ่าย (Cost Center)',
-                html: `<div style="text-align:left; margin-bottom:5px;">ประเภท:</div><select id="exp-type" class="swal2-input" style="margin:0 0 15px 0; width:100%;"><option value="ค่าเน็ตโทรศัพท์">📡 ค่าเน็ตโทรศัพท์</option><option value="เงินเดือนพนักงาน">👥 เงินเดือนพนักงาน</option><option value="ค่าปลด iCloud">🔓 ค่าปลด iCloud</option><option value="ค่าคอมมิชชั่น">💰 ค่าคอมมิชชั่น</option><option value="อื่นๆ">📝 อื่นๆ</option></select><div style="text-align:left; margin-bottom:5px;">จำนวนเงิน:</div><input id="exp-amount" type="number" class="swal2-input" style="margin:0 0 15px 0; width:100%;" placeholder="0.00"><div style="text-align:left; margin-bottom:5px;">หมายเหตุ:</div><input id="exp-note" class="swal2-input" style="margin:0 0 15px 0; width:100%;" placeholder="รายละเอียดเพิ่มเติม">`,
-                showCancelButton: true, confirmButtonText: 'บันทึก', cancelButtonText: 'ยกเลิก', preConfirm: () => { return { type: document.getElementById('exp-type').value, amount: document.getElementById('exp-amount').value, note: document.getElementById('exp-note').value } }
-            });
-
-            if (formValues) {
-                if(!formValues.amount) return Swal.fire('Error', 'ระบุจำนวนเงิน', 'error');
-                Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-                try {
-                    await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'add_expense', date: new Date().toISOString().split('T')[0], type: formValues.type, amount: formValues.amount, note: formValues.note, user: currentUser.name }) });
-                    Swal.fire('สำเร็จ', 'บันทึกรายจ่ายเรียบร้อย', 'success');
-                } catch (e) { Swal.fire('Error', 'บันทึกไม่สำเร็จ', 'error'); }
-            }
+    if(!currentUser || currentUser.role !== 'admin') return Swal.fire('Access Denied', 'เฉพาะผู้ดูแลระบบเท่านั้น', 'warning');
+    
+    const { value: formValues } = await Swal.fire({
+        title: 'บันทึกรายจ่าย (Cost Center)',
+        html: `
+            <div style="text-align:left; margin-bottom:5px; font-weight:bold;">1. ส่วนงาน/ทีมขาย:</div>
+            <select id="exp-sale-code" class="swal2-input" style="margin:0 0 15px 0; width:100%;">
+                <option value="Central">🏢 ส่วนกลาง (Central)</option>
+                <option value="T">👤 ทีม T</option>
+                <option value="K">👤 ทีม K</option>
+                <option value="N">👤 ทีม N</option>
+            </select>
+            
+            <div style="text-align:left; margin-bottom:5px; font-weight:bold;">2. ประเภทรายจ่าย:</div>
+            <select id="exp-type" class="swal2-input" style="margin:0 0 15px 0; width:100%;">
+                <option value="ค่าเน็ตโทรศัพท์">📡 ค่าเน็ตโทรศัพท์</option>
+                <option value="เงินเดือนพนักงาน">👥 เงินเดือนพนักงาน</option>
+                <option value="ค่าปลด iCloud">🔓 ค่าปลด iCloud</option>
+                <option value="ค่าคอมมิชชั่น">💰 ค่าคอมมิชชั่น</option>
+                <option value="อื่นๆ">📝 อื่นๆ</option>
+            </select>
+            
+            <div style="text-align:left; margin-bottom:5px; font-weight:bold;">3. จำนวนเงิน (บาท):</div>
+            <input id="exp-amount" type="number" class="swal2-input" style="margin:0 0 15px 0; width:100%;" placeholder="0.00">
+            
+            <div style="text-align:left; margin-bottom:5px; font-weight:bold;">4. หมายเหตุ (ระบุชื่อเซลล์/รายละเอียด):</div>
+            <input id="exp-note" class="swal2-input" style="margin:0 0 15px 0; width:100%;" placeholder="เช่น ของนาย ก., ซื้ออุปกรณ์...">
+        `,
+        showCancelButton: true, confirmButtonText: 'บันทึก', cancelButtonText: 'ยกเลิก',
+        preConfirm: () => { 
+            return { 
+                sale_code: document.getElementById('exp-sale-code').value, // ✅ รับค่า Sale Code
+                type: document.getElementById('exp-type').value, 
+                amount: document.getElementById('exp-amount').value, 
+                note: document.getElementById('exp-note').value 
+            } 
         }
+    });
+
+    if (formValues) {
+        if(!formValues.amount) return Swal.fire('Error', 'ระบุจำนวนเงิน', 'error');
+        Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        try {
+            await fetch(API_URL, { 
+                method: 'POST', 
+                body: JSON.stringify({ 
+                    action: 'add_expense', 
+                    date: new Date().toISOString().split('T')[0], 
+                    sale_code: formValues.sale_code, // ✅ ส่งค่า Sale Code ไปบันทึก
+                    type: formValues.type, 
+                    amount: formValues.amount, 
+                    note: formValues.note, 
+                    user: currentUser.name 
+                }) 
+            });
+            Swal.fire('สำเร็จ', 'บันทึกรายจ่ายเรียบร้อย', 'success');
+        } catch (e) { Swal.fire('Error', 'บันทึกไม่สำเร็จ', 'error'); }
+    }
+}
 
         // ==========================================
         // ✅ User Management
@@ -427,6 +470,7 @@
         function renderDashboard(data, selectedDate, forceShowAll) {
             const container = document.getElementById('contractList'); 
             const polyContainer = document.getElementById('polygonContainer');
+			globalSummary = data.summary || {};
             container.innerHTML = ""; polyContainer.innerHTML = "";
             document.getElementById('contractListHeading').style.display = 'none';
             filteredData = [];
@@ -512,45 +556,88 @@
         }
 
         function createCardHtml(c) {
-            if (c.finalAmount === undefined) { c.finalAmount = parseFloat(c.amount || 0) * (c.overdue_count > 1 ? c.overdue_count : 1); }
-            if (c.hasPostpone === undefined) { c.hasPostpone = (c.postpone_date && c.postpone_date !== "-" && c.postpone_date !== ""); }
-            const isAdmin = currentUser.role === 'admin';
-            let cardClass = isSearchMode ? "card-search-result" : "card-normal"; 
-            let statusHtml = `<span class="status-text text-green"><i class="fas fa-check-circle"></i> ปกติ</span>`;
-            let hasPaymentNote = c.last_note && c.last_note.includes('แจ้งชำระ');
-            const isClosed = (c.status === 'Paid' || c.status === 'Close');
+    if (c.finalAmount === undefined) { c.finalAmount = parseFloat(c.amount || 0) * (c.overdue_count > 1 ? c.overdue_count : 1); }
+    if (c.hasPostpone === undefined) { c.hasPostpone = (c.postpone_date && c.postpone_date !== "-" && c.postpone_date !== ""); }
+    const isAdmin = currentUser.role === 'admin'; // เช็คสิทธิ์เพื่อใช้กับปุ่มจัดการ (Edit/Delete) เท่านั้น
+    
+    let cardClass = isSearchMode ? "card-search-result" : "card-normal"; 
+    let statusHtml = `<span class="status-text text-green"><i class="fas fa-check-circle"></i> ปกติ</span>`;
+    let hasPaymentNote = c.last_note && c.last_note.includes('แจ้งชำระ');
+    const isClosed = (c.status === 'Paid' || c.status === 'Close');
 
-            if (c.status === 'Pending_Approve' || c.status === 'รอตรวจสอบ') { cardClass = "card-pending-approve"; if(isAdmin) statusHtml = `<span class="status-text text-orange" onclick="adminApprove('${c.c_no}', ${c.row_index}, '${c.request_date}', '${c.last_note || ''}', 'postpone')">⏳ รอตรวจสอบ (กด)</span>`; else statusHtml = `<span class="status-text text-orange">⏳ รอตรวจสอบ</span>`; } 
-            else if (c.status === 'รอปิดยอด') { cardClass = "card-pending-approve"; if(isAdmin) statusHtml = `<span class="status-text text-red" style="cursor:pointer;" onclick="adminApprove('${c.c_no}', ${c.row_index}, '-', '${c.last_note || ''}', 'close')">🏁 รอปิดยอด (กดอนุมัติ)</span>`; else statusHtml = `<span class="status-text text-red">🏁 รออนุมัติปิดยอด</span>`; }
-            else if (c.hasPostpone) { cardClass = "card-postpone"; statusHtml = `<span class="status-text text-purple">⏰ เลื่อน: ${c.postpone_date}</span>`; } 
-            else if (c.overdue_count > 0) { cardClass = "card-overdue"; statusHtml = `<span class="status-text text-red">❗ ค้าง ${c.overdue_count} งวด</span>`; }
-            else if (isClosed) { statusHtml = `<span class="status-text text-green">✅ ปิดบัญชีแล้ว (${c.last_payment_date})</span>`; }
+    // Logic สีการ์ดและสถานะ
+    if (c.status === 'Pending_Approve' || c.status === 'รอตรวจสอบ') { 
+        cardClass = "card-pending-approve"; 
+        if(isAdmin) statusHtml = `<span class="status-text text-orange" onclick="adminApprove('${c.c_no}', ${c.row_index}, '${c.request_date}', '${c.last_note || ''}', 'postpone')">⏳ รอตรวจสอบ (กด)</span>`; 
+        else statusHtml = `<span class="status-text text-orange">⏳ รอตรวจสอบ</span>`; 
+    } 
+    else if (c.status === 'รอปิดยอด') { 
+        cardClass = "card-pending-approve"; 
+        if(isAdmin) statusHtml = `<span class="status-text text-red" style="cursor:pointer;" onclick="adminApprove('${c.c_no}', ${c.row_index}, '-', '${c.last_note || ''}', 'close')">🏁 รอปิดยอด (กดอนุมัติ)</span>`; 
+        else statusHtml = `<span class="status-text text-red">🏁 รออนุมัติปิดยอด</span>`; 
+    }
+    else if (c.hasPostpone) { cardClass = "card-postpone"; statusHtml = `<span class="status-text text-purple">⏰ เลื่อน: ${c.postpone_date}</span>`; } 
+    else if (c.overdue_count > 0) { cardClass = "card-overdue"; statusHtml = `<span class="status-text text-red">❗ ค้าง ${c.overdue_count} งวด</span>`; }
+    else if (isClosed) { statusHtml = `<span class="status-text text-green">✅ ปิดบัญชีแล้ว (${c.last_payment_date})</span>`; }
 
-            if (hasPaymentNote) { let noteContent = linkify(c.last_note); statusHtml += `<div style="font-size:11px; color:#4361ee; background:#eef2ff; padding:6px; border-radius:4px; margin-top:4px; border:1px solid #dce6ff; white-space:normal; word-break:break-all;">💰 ${noteContent}</div>`; }
+    if (hasPaymentNote) { let noteContent = linkify(c.last_note); statusHtml += `<div style="font-size:11px; color:#4361ee; background:#eef2ff; padding:6px; border-radius:4px; margin-top:4px; border:1px solid #dce6ff; white-space:normal; word-break:break-all;">💰 ${noteContent}</div>`; }
 
-            let menuButton = isAdmin ? `<button class="btn-kebab" style="margin-left:5px;" onclick="openManageMenu(${c.row_index},'${c.b_name}','${c.c_no}')">⋮</button>` : '';
-            let actionButtonsHtml = '', gridClass = '';
-            const hasExtraInfo = (c.contact_image && c.contact_image !== "" && c.contact_image !== "-");
-            const infoBtn = hasExtraInfo ? `<button class="btn-act btn-act-info" onclick="openContactImage('${c.c_no}')"><i class="fas fa-address-card"></i> ข้อมูลเพิ่มเติม</button>` : `<button class="btn-act btn-disabled" disabled><i class="fas fa-address-card"></i> ข้อมูลเพิ่มเติม</button>`;
-            const contractBtn = `<button class="btn-act btn-act-contract" onclick="openContractPopup('${c.c_no}')"><i class="fas fa-file-contract"></i> สัญญา</button>`;
+    // 🟢 ส่วนแสดงผล ROI / กำไร (ปลดล็อกให้ทุกคนเห็น)
+    let financialHtml = '';
+    // ✅ เอา if (isAdmin) ออก เพื่อให้ทุกคนเห็นข้อมูลชุดนี้
+    let profitClass = c.current_profit >= 0 ? 'color:#27ae60;' : 'color:#c0392b;';
+    let profitIcon = c.current_profit >= 0 ? '📈 กำไร' : '📉 ยังไม่คืนทุน';
+    
+    // คำนวณความกว้าง Progress Bar
+    let progressPercent = 0;
+    if (c.product_cost > 0) {
+        progressPercent = (c.total_revenue / c.product_cost) * 100;
+    } else {
+        progressPercent = 100; // ถ้าไม่มีต้นทุน ถือว่าคืนทุนทันที
+    }
+    if (progressPercent > 100) progressPercent = 100;
 
-            if (isClosed) {
-                gridClass = 'grid-closed-actions';
-                actionButtonsHtml = `${infoBtn}${contractBtn}`;
-            } else {
-                if (isAdmin) {
-                    gridClass = 'grid-admin-actions';
-                    actionButtonsHtml = `<a href="tel:${c.b_mobile}" class="btn-act btn-act-call"><i class="fas fa-phone"></i> โทร</a>${infoBtn}${contractBtn}<button class="btn-act btn-act-pay" onclick="openPay('${c.c_no}')"><i class="fas fa-wallet"></i> จ่าย</button><button class="btn-act btn-act-postpone" style="grid-column: 1 / -1;" onclick="openPostpone(${c.row_index},'${c.b_name}', '${c.postpone_date||''}')"><i class="fas fa-calendar-check"></i> นัดหมาย</button>`;
-                } else {
-                    gridClass = 'grid-user-actions';
-                    const isPending = (c.status === 'Pending_Approve' || c.status === 'รอตรวจสอบ' || c.status === 'รอปิดยอด');
-                    const payBtn = isPending ? `<button class="user-checkbox-btn btn-disabled" disabled><i class="fas fa-clock"></i> รออนุมัติ</button>` : `<button class="user-checkbox-btn" onclick="userReqPay('${c.c_no}')"><i class="far fa-check-square"></i> แจ้งชำระ</button>`;
-                    const closeBtn = isPending ? `<button class="user-checkbox-btn btn-disabled" disabled><i class="fas fa-flag-checkered"></i> ปิดยอด</button>` : `<button class="user-checkbox-btn" onclick="userReqClose('${c.c_no}')" style="color:#c0392b;"><i class="fas fa-flag-checkered"></i> ขอปิดยอด</button>`;
-                    actionButtonsHtml = `<a href="tel:${c.b_mobile}" class="btn-act btn-act-call"><i class="fas fa-phone"></i> โทร</a>${infoBtn}${contractBtn}${payBtn}<button class="user-checkbox-btn" onclick="userReqPostpone('${c.c_no}')"><i class="far fa-clock"></i> เลื่อนนัด</button>${closeBtn}<button class="user-checkbox-btn" style="grid-column: 1 / -1;" onclick="userAddNote('${c.c_no}')"><i class="fas fa-pen"></i> หมายเหตุ</button>`;
-                }
-            }
-            return `<div class="cust-card ${cardClass}"><div class="cust-header"><div class="cust-info"><h3>${c.b_name}</h3><span class="cust-id">#${c.c_no}</span></div><div class="status-badge">${statusHtml}</div>${menuButton}</div><div class="cust-body"><div><div class="contact-line"><i class="fas fa-phone"></i> ${c.b_mobile}</div><div class="contact-line">งวดที่ ${c.installment_no}</div></div><div style="text-align:right"><span style="font-size:10px; color:#777;">ยอดชำระ</span><div class="amount-val">฿${c.finalAmount.toLocaleString()}</div></div></div><div class="cust-actions ${gridClass}">${actionButtonsHtml}</div></div>`;
+    financialHtml = `
+        <div style="background:#f8f9fa; padding:8px; margin-top:10px; border-radius:8px; font-size:12px; border:1px solid #eee;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                <span style="color:#7f8c8d;">ต้นทุน: ${parseInt(c.product_cost || 0).toLocaleString()}</span>
+                <span style="font-weight:bold; ${profitClass}">${profitIcon} ${parseInt(c.current_profit || 0).toLocaleString()}</span>
+            </div>
+            <div style="width:100%; background:#e0e0e0; height:6px; border-radius:3px; overflow:hidden;">
+                <div style="width:${progressPercent}%; background:${c.current_profit >= 0 ? '#27ae60' : '#f39c12'}; height:100%;"></div>
+            </div>
+            <div style="display:flex; justify-content:space-between; font-size:10px; color:#95a5a6; margin-top:2px;">
+                <span>รับจริง: ${parseInt(c.total_revenue || 0).toLocaleString()}</span>
+                <span>ROI: ${c.roi_percent || 0}%</span>
+            </div>
+        </div>
+    `;
+
+    // ส่วนปุ่มกด (ยังคงแยกสิทธิ์ Admin/User เหมือนเดิมเพื่อป้องกัน User ไปกดลบมั่ว)
+    let menuButton = isAdmin ? `<button class="btn-kebab" style="margin-left:5px;" onclick="openManageMenu(${c.row_index},'${c.b_name}','${c.c_no}')">⋮</button>` : '';
+    let actionButtonsHtml = '', gridClass = '';
+    const hasExtraInfo = (c.contact_image && c.contact_image !== "" && c.contact_image !== "-");
+    const infoBtn = hasExtraInfo ? `<button class="btn-act btn-act-info" onclick="openContactImage('${c.c_no}')"><i class="fas fa-address-card"></i> ข้อมูลเพิ่มเติม</button>` : `<button class="btn-act btn-disabled" disabled><i class="fas fa-address-card"></i> ข้อมูลเพิ่มเติม</button>`;
+    const contractBtn = `<button class="btn-act btn-act-contract" onclick="openContractPopup('${c.c_no}')"><i class="fas fa-file-contract"></i> สัญญา</button>`;
+
+    if (isClosed) {
+        gridClass = 'grid-closed-actions';
+        actionButtonsHtml = `${infoBtn}${contractBtn}`;
+    } else {
+        if (isAdmin) {
+            gridClass = 'grid-admin-actions';
+            actionButtonsHtml = `<a href="tel:${c.b_mobile}" class="btn-act btn-act-call"><i class="fas fa-phone"></i> โทร</a>${infoBtn}${contractBtn}<button class="btn-act btn-act-pay" onclick="openPay('${c.c_no}')"><i class="fas fa-wallet"></i> จ่าย</button><button class="btn-act btn-act-postpone" style="grid-column: 1 / -1;" onclick="openPostpone(${c.row_index},'${c.b_name}', '${c.postpone_date||''}')"><i class="fas fa-calendar-check"></i> นัดหมาย</button>`;
+        } else {
+            gridClass = 'grid-user-actions';
+            const isPending = (c.status === 'Pending_Approve' || c.status === 'รอตรวจสอบ' || c.status === 'รอปิดยอด');
+            const payBtn = isPending ? `<button class="user-checkbox-btn btn-disabled" disabled><i class="fas fa-clock"></i> รออนุมัติ</button>` : `<button class="user-checkbox-btn" onclick="userReqPay('${c.c_no}')"><i class="far fa-check-square"></i> แจ้งชำระ</button>`;
+            const closeBtn = isPending ? `<button class="user-checkbox-btn btn-disabled" disabled><i class="fas fa-flag-checkered"></i> ปิดยอด</button>` : `<button class="user-checkbox-btn" onclick="userReqClose('${c.c_no}')" style="color:#c0392b;"><i class="fas fa-flag-checkered"></i> ขอปิดยอด</button>`;
+            actionButtonsHtml = `<a href="tel:${c.b_mobile}" class="btn-act btn-act-call"><i class="fas fa-phone"></i> โทร</a>${infoBtn}${contractBtn}${payBtn}<button class="user-checkbox-btn" onclick="userReqPostpone('${c.c_no}')"><i class="far fa-clock"></i> เลื่อนนัด</button>${closeBtn}<button class="user-checkbox-btn" style="grid-column: 1 / -1;" onclick="userAddNote('${c.c_no}')"><i class="fas fa-pen"></i> หมายเหตุ</button>`;
         }
+    }
+    
+    return `<div class="cust-card ${cardClass}"><div class="cust-header"><div class="cust-info"><h3>${c.b_name}</h3><span class="cust-id">#${c.c_no}</span></div><div class="status-badge">${statusHtml}</div>${menuButton}</div><div class="cust-body"><div><div class="contact-line"><i class="fas fa-phone"></i> ${c.b_mobile}</div><div class="contact-line">งวดที่ ${c.installment_no}</div></div><div style="text-align:right"><span style="font-size:10px; color:#777;">ยอดชำระ</span><div class="amount-val">฿${c.finalAmount.toLocaleString()}</div></div></div> ${financialHtml} <div class="cust-actions ${gridClass}">${actionButtonsHtml}</div></div>`;
+}
 
         async function userReqPay(cNo) {
             const { value: formValues } = await Swal.fire({
@@ -612,7 +699,40 @@
         async function openContractPopup(cNo) { Swal.fire({ title: 'กำลังโหลด...', allowOutsideClick: false, didOpen: () => Swal.showLoading() }); try { const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'get_contract_image', c_no: String(cNo) }) }); const d = await res.json(); if(d.status === 'success') { let fileId = ""; if(d.url.includes("id=")) { fileId = d.url.split('id=')[1].split('&')[0]; } if(fileId) { let previewUrl = `https://drive.google.com/file/d/${fileId}/preview`; Swal.fire({ html: `<div style="position:relative; padding-bottom:10px;"><iframe src="${previewUrl}" width="100%" height="450px" style="border:none; border-radius:8px;"></iframe></div>`, width: '600px', showCloseButton: true, confirmButtonText: 'ปิด', footer: `<a href="${d.url}" target="_blank" style="color:#4361ee; font-weight:bold; text-decoration:underline;">หากรูปไม่ขึ้น คลิกที่นี่เพื่อเปิดแอป Drive</a>` }); } else { Swal.fire({ imageUrl: d.url, width: '95%', confirmButtonText: 'ปิด' }); } } else { Swal.fire({ icon: 'warning', title: 'ไม่พบไฟล์รูปสัญญา' }); } } catch(e) { Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาดในการโหลด' }); } }
         async function openContactImage(cNo) { Swal.showLoading(); try { const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'get_contract_image', c_no: cNo, type: 'contact_aw' }) }); const d = await res.json(); if(d.status==='success') { let fileId = ""; if(d.url.includes("id=")) { fileId = d.url.split('id=')[1].split('&')[0]; } if(fileId) { let previewUrl = `https://drive.google.com/file/d/${fileId}/preview`; Swal.fire({ html: `<iframe src="${previewUrl}" width="100%" height="450px" style="border:none; border-radius:8px;"></iframe>`, width: '600px', showCloseButton: true, confirmButtonText: 'ปิด' }); } else { Swal.fire({ imageUrl: d.url, width: '95%', confirmButtonText: 'ปิด' }); } } else Swal.fire({ icon: 'warning', title: 'ไม่พบข้อมูลเพิ่มเติม (AW)' }); } catch(e) { Swal.fire('Error', 'ผิดพลาด'); } }
         function formatDateToThai(dateString) { if(!dateString) return ""; const p = dateString.split('-'); let year = parseInt(p[0]) + 543; return `${p[2]}/${p[1]}/${year}`; }
-        function updateCharts(dailyTarget, dailyCollected, monthlyTarget, monthlyCollected) { document.getElementById('txtTodayCollected').innerText = dailyCollected.toLocaleString(); document.getElementById('txtMonthCollected').innerText = monthlyCollected.toLocaleString(); }
+        function updateCharts(dailyTarget, dailyCollected, monthlyTarget, monthlyCollected) { 
+    document.getElementById('txtTodayCollected').innerText = dailyCollected.toLocaleString(); 
+    document.getElementById('txtMonthCollected').innerText = monthlyCollected.toLocaleString();
+    
+    // ส่วนที่เพิ่มใหม่: อัปเดตส่วนแสดงค่าคอมมิชชั่นแบบละเอียด
+    if (globalSummary && globalSummary.commission !== undefined) {
+         const commEl = document.getElementById('txtCommission');
+         if(commEl) {
+             commEl.innerText = (globalSummary.commission || 0).toLocaleString();
+             
+             // เพิ่มรายละเอียดที่มาของตัวเลข (Breakdown)
+             if (globalSummary.commission_breakdown) {
+                 const bd = globalSummary.commission_breakdown;
+                 
+                 // สร้าง HTML แสดงรายละเอียดการคำนวณ: เก็บได้ - ทุนสินค้า - รายจ่าย = กำไร
+                 let detailHtml = `<div style="font-size:10px; color:#555; margin-top:5px; line-height:1.4; background:rgba(255,255,255,0.8); padding:5px; border-radius:4px;">
+                    <div>+ ยอดเก็บ: ${bd.revenue.toLocaleString()}</div>
+                    <div style="color:#c0392b;">- ทุนสินค้าใหม่: ${bd.product_cost_deduct.toLocaleString()}</div>
+                    <div style="color:#c0392b;">- รายจ่าย: ${bd.expense_deduct.toLocaleString()}</div>
+                    <div style="font-weight:bold; border-top:1px dashed #ccc; margin-top:2px; padding-top:2px;">= กำไรสุทธิ: ${bd.net_profit_month.toLocaleString()}</div>
+                 </div>`;
+                 
+                 // เช็คว่ามีกล่องแสดงรายละเอียดหรือยัง ถ้ายังให้สร้างใหม่
+                 let detailEl = document.getElementById('commDetailBox');
+                 if (!detailEl) {
+                     detailEl = document.createElement('div');
+                     detailEl.id = 'commDetailBox';
+                     commEl.parentNode.appendChild(detailEl);
+                 }
+                 detailEl.innerHTML = detailHtml;
+             }
+         }
+    }
+}
         function exportToExcel() { if (!filteredData.length) return Swal.fire('ไม่มีข้อมูล', 'กรุณาค้นหาหรือเลือกวันที่ก่อน', 'warning'); let csv = "data:text/csv;charset=utf-8,\uFEFFลำดับ,เลขสัญญา,ชื่อ,เบอร์,งวด,ยอด,สถานะ\n"; filteredData.forEach((i, idx) => csv += `${idx+1},"${i.c_no}","${i.b_name}","${i.b_mobile}",${i.installment_no},${i.finalAmount},"${i.status}"\n`); const link = document.createElement("a"); link.href = encodeURI(csv); link.download = "Report.csv"; link.click(); }
         function openPay(c_no) { window.open(`https://kamkywork.github.io/sale_bill/?ref=${c_no}`, '_blank'); }
         async function openManageMenu(idx, name, c_no) { const { value: action } = await Swal.fire({ title: name, input: 'select', inputOptions: { 'cancel_contract': '❌ ยกเลิกสัญญา', 'close_account': '✅ ปิดยอด' }, showCancelButton: true }); if(action){ Swal.fire({title:'ยืนยัน?',showCancelButton:true}).then(r=>{if(r.isConfirmed) executeAction({action,c_no,row_index:idx})}); } }
