@@ -141,7 +141,9 @@
             
             <button class="btn-pill btn-closed" onclick="showClosedContracts()"><i class="fas fa-check-double"></i> ปิด/ครบงวด</button>
             <button id="btnExpense" class="btn-pill btn-expense" style="display:none;" onclick="recordExpense()"><i class="fas fa-file-invoice-dollar"></i> บันทึกรายจ่าย</button>
-
+			<button id="btnShopReport" class="btn-pill" style="background: linear-gradient(135deg, #11998e, #38ef7d); display:none;" onclick="showShopTransferReport()">
+				<i class="fas fa-money-bill-wave"></i> ยอดโอนร้าน
+			</button>
             <button id="btnPrint" class="btn-icon btn-print" onclick="printReport()"><i class="fas fa-print"></i></button>
             <button id="btnExcel" class="btn-icon btn-excel" onclick="exportToExcel()"><i class="fas fa-file-excel"></i></button>
             <button id="btnReset" class="btn-icon btn-reset" onclick="resetHidden()"><i class="fas fa-eye"></i></button>
@@ -185,7 +187,7 @@
     </div>
 
     <script>
-        const API_URL = 'https://script.google.com/macros/s/AKfycbz3oeGl9Fn_KFCumaoUWkyYXu3uAHvZADi9KVr8ELvB8itkRMnMVCnRUOKxa_FEzJOwHA/exec'; 
+        const API_URL = 'https://script.google.com/macros/s/AKfycbyLAqqN2KYBoWiOpsyPo_lHI_jfAxj9W37l5d54vsX1DAmrty9p4fzUGh17TsRkkrH8gg/exec'; 
         let currentUser = null;
         let currentTrackingData = [], filteredData = [], globalSummary = {};
         let contractGroups = {}; 
@@ -227,6 +229,7 @@
             else { 
                 document.getElementById('btnAdmin').style.display = 'flex'; 
                 document.getElementById('btnExpense').style.display = 'flex';
+				document.getElementById('btnShopReport').style.display = 'flex';
             }
             loadData();
         }
@@ -747,6 +750,92 @@
             const htmlContent = `<html><head><title>รายงานติดตามหนี้</title><link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600&display=swap" rel="stylesheet"><style> body { font-family: 'Sarabun', sans-serif; padding: 20px; } h2 { text-align: center; margin-bottom: 5px; } .meta { text-align: center; font-size: 12px; color: #555; margin-bottom: 20px; } table { width: 100%; border-collapse: collapse; font-size: 12px; } th { background: #eee; padding: 6px; border: 1px solid #ccc; } td { padding: 6px; border: 1px solid #ccc; vertical-align: middle; } @media print { button { display: none; } } </style></head><body><h2>รายการติดตามหนี้</h2><div class="meta">พิมพ์เมื่อ: ${dateStr} เวลา ${timeStr} | จำนวน: ${filteredData.length} รายการ</div><table><thead><tr><th width="5%">#</th><th width="15%">เลขสัญญา</th><th width="25%">ชื่อลูกค้า</th><th width="15%">ยอดชำระ</th><th width="15%">สถานะ</th><th width="25%">หมายเหตุ</th></tr></thead><tbody>${tableRows}</tbody></table><script>window.onload = function() { window.print(); }<\/script></body></html>`;
             let win = window.open('', '_blank'); win.document.write(htmlContent); win.document.close();
         }
+		
+		function showShopTransferReport() {
+    // 1. กรองเฉพาะสัญญาที่เกิดขึ้นใน "วันที่เลือก" (ตาม filterDate)
+    const selectedDate = document.getElementById('filterDate').value; // รูปแบบ YYYY-MM-DD
+    
+    // แปลงวันที่เลือกเป็นรูปแบบไทย (เช่น 01/02/69) เพื่อเทียบกับ c_date ในฐานข้อมูล
+    // หมายเหตุ: ต้องมั่นใจว่าใน Google Sheet เก็บ c_date เป็นรูปแบบไหน (ในโค้ดเดิมเห็นใช้ formatDateToThai)
+    // แต่เพื่อความชัวร์ เราจะเทียบจาก ISO Date หรือวันที่ที่โหลดมา
+    
+    // กรองข้อมูล: เอาเฉพาะรายการที่ c_date (วันที่สัญญา) ตรงกับวันที่เลือก
+    // และสถานะไม่ใช่ 'ยกเลิก'
+    const dailyContracts = currentTrackingData.filter(c => {
+        // แปลง c_date จากไทยหรือรูปแบบอื่นให้เทียบกับ selectedDate ได้
+        // สมมติว่า c_date_iso (YYYY-MM-DD) ถูกส่งมาจากหลังบ้าน หรือเทียบผ่านฟอร์แมตไทย
+        // ในที่นี้ขอใช้การเทียบแบบง่าย ถ้าในระบบมี field วันที่แบบ iso จะแม่นยำที่สุด
+        // ถ้าไม่มี ให้ดูวันที่สร้าง (create_date) หรือ c_date ที่ตรงกับ formatDateToThai(selectedDate)
+        
+        let targetDateThai = formatDateToThai(selectedDate); // แปลงวันที่เลือกเป็นไทย 1/2/69
+        return c.c_date === targetDateThai; 
+    });
+
+    if (dailyContracts.length === 0) {
+        Swal.fire('ไม่มีข้อมูล', `ไม่พบการทำสัญญาใหม่ในวันที่ ${formatDateToThai(selectedDate)}`, 'info');
+        return;
+    }
+
+    // 2. สร้างตาราง HTML
+    let totalTransfer = 0;
+    let tableRows = dailyContracts.map((c, index) => {
+        // ดึงค่ายอดโอน (สมมติว่า backend ส่งมาชื่อ shop_transfer_amount)
+        // ถ้าไม่มีให้คำนวณคร่าวๆ (product_cost - p_down) แต่น่าจะส่งมาตรงๆ ดีกว่า
+        let transferAmt = parseFloat(String(c.shop_transfer_amount || 0).replace(/,/g,''));
+        totalTransfer += transferAmt;
+
+        return `
+            <tr style="border-bottom:1px solid #ddd;">
+                <td style="padding:8px;">${index + 1}</td>
+                <td style="padding:8px; font-weight:bold;">${c.shop_name || '-'}</td>
+                <td style="padding:8px; font-size:12px;">
+                    ${c.shop_bank || '-'} <br>
+                    <span style="color:#666;">(สัญญา: ${c.c_no})</span>
+                </td>
+                <td style="padding:8px; text-align:right; font-weight:bold; color:#c0392b;">
+                    ${transferAmt.toLocaleString()}
+                </td>
+            </tr>
+        `;
+    }).join('');
+
+    // 3. แสดงผลด้วย SweetAlert
+    Swal.fire({
+        title: `สรุปยอดโอนคืนร้านค้า`,
+        html: `
+            <div style="text-align:center; margin-bottom:10px; color:#555;">
+                ประจำวันที่ ${formatDateToThai(selectedDate)}
+            </div>
+            <div style="max-height:300px; overflow-y:auto; border:1px solid #eee;">
+                <table style="width:100%; border-collapse:collapse; font-size:14px; text-align:left;">
+                    <thead style="background:#2c3e50; color:white;">
+                        <tr>
+                            <th style="padding:8px;">#</th>
+                            <th style="padding:8px;">ร้านค้า</th>
+                            <th style="padding:8px;">ธนาคาร/สัญญา</th>
+                            <th style="padding:8px; text-align:right;">ยอดโอน</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${tableRows}
+                    </tbody>
+                    <tfoot style="background:#f9f9f9; font-weight:bold;">
+                        <tr>
+                            <td colspan="3" style="padding:10px; text-align:right;">ยอดรวมทั้งสิ้น:</td>
+                            <td style="padding:10px; text-align:right; color:#c0392b; font-size:16px;">
+                                ${totalTransfer.toLocaleString()}
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        `,
+        width: '600px',
+        confirmButtonText: 'ปิดหน้าต่าง',
+        showCloseButton: true,
+        footer: '<button onclick="printShopReport()" style="border:none; background:none; color:blue; cursor:pointer; text-decoration:underline;">🖨️ พิมพ์รายงานนี้</button>'
+    });
+}
     </script>
 </body>
 </html>
