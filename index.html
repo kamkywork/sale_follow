@@ -788,39 +788,58 @@ async function addUser() {
         async function openContactImage(cNo) { Swal.showLoading(); try { const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'get_contract_image', c_no: cNo, type: 'contact_aw' }) }); const d = await res.json(); if(d.status==='success') { let fileId = ""; if(d.url.includes("id=")) { fileId = d.url.split('id=')[1].split('&')[0]; } if(fileId) { let previewUrl = `https://drive.google.com/file/d/${fileId}/preview`; Swal.fire({ html: `<iframe src="${previewUrl}" width="100%" height="450px" style="border:none; border-radius:8px;"></iframe>`, width: '600px', showCloseButton: true, confirmButtonText: 'ปิด' }); } else { Swal.fire({ imageUrl: d.url, width: '95%', confirmButtonText: 'ปิด' }); } } else Swal.fire({ icon: 'warning', title: 'ไม่พบข้อมูลเพิ่มเติม (AW)' }); } catch(e) { Swal.fire('Error', 'ผิดพลาด'); } }
         function formatDateToThai(dateString) { if(!dateString) return ""; const p = dateString.split('-'); let year = parseInt(p[0]) + 543; return `${p[2]}/${p[1]}/${year}`; }
         function updateCharts(dailyTarget, dailyCollected, monthlyTarget, monthlyCollected) { 
-    document.getElementById('txtTodayCollected').innerText = dailyCollected.toLocaleString(); 
-    document.getElementById('txtMonthCollected').innerText = monthlyCollected.toLocaleString();
-    
-    // ส่วนที่เพิ่มใหม่: อัปเดตส่วนแสดงค่าคอมมิชชั่นแบบละเอียด
-    if (globalSummary && globalSummary.commission !== undefined) {
-         const commEl = document.getElementById('txtCommission');
-         if(commEl) {
-             commEl.innerText = (globalSummary.commission || 0).toLocaleString();
-             
-             // เพิ่มรายละเอียดที่มาของตัวเลข (Breakdown)
-             if (globalSummary.commission_breakdown) {
-                 const bd = globalSummary.commission_breakdown;
-                 
-                 // สร้าง HTML แสดงรายละเอียดการคำนวณ: เก็บได้ - ทุนสินค้า - รายจ่าย = กำไร
-                 let detailHtml = `<div style="font-size:10px; color:#555; margin-top:5px; line-height:1.4; background:rgba(255,255,255,0.8); padding:5px; border-radius:4px;">
-                    <div>+ ยอดเก็บ: ${bd.revenue.toLocaleString()}</div>
-                    <div style="color:#c0392b;">- ทุนสินค้าใหม่: ${bd.product_cost_deduct.toLocaleString()}</div>
-                    <div style="color:#c0392b;">- รายจ่าย: ${bd.expense_deduct.toLocaleString()}</div>
-                    <div style="font-weight:bold; border-top:1px dashed #ccc; margin-top:2px; padding-top:2px;">= กำไรสุทธิ: ${bd.net_profit_month.toLocaleString()}</div>
-                 </div>`;
-                 
-                 // เช็คว่ามีกล่องแสดงรายละเอียดหรือยัง ถ้ายังให้สร้างใหม่
-                 let detailEl = document.getElementById('commDetailBox');
-                 if (!detailEl) {
-                     detailEl = document.createElement('div');
-                     detailEl.id = 'commDetailBox';
-                     commEl.parentNode.appendChild(detailEl);
+            // 1. อัปเดตยอดเก็บได้วันนี้และเดือนนี้ (ของเดิม)
+            document.getElementById('txtTodayCollected').innerText = dailyCollected.toLocaleString(); 
+            document.getElementById('txtMonthCollected').innerText = monthlyCollected.toLocaleString();
+            
+            // -------------------------------------------------------------
+            // [เพิ่มใหม่] 2. ส่วนที่ขาดหายไป: อัปเดตต้นทุนรวม และ กำไรสุทธิ
+            // -------------------------------------------------------------
+            if (globalSummary) {
+                // อัปเดตต้นทุน (Total Cost)
+                if (document.getElementById('txtTotalCost')) {
+                    // ใช้ค่า total_cost จาก backend หรือถ้าไม่มีให้เป็น 0
+                    let cost = globalSummary.total_cost || 0;
+                    document.getElementById('txtTotalCost').innerText = cost.toLocaleString();
+                }
+
+                // อัปเดตกำไรสุทธิ (Net Profit)
+                if (document.getElementById('txtNetProfit')) {
+                    // ใช้ค่า net_profit จาก backend หรือถ้าไม่มีให้เป็น 0
+                    let profit = globalSummary.net_profit || 0; 
+                    document.getElementById('txtNetProfit').innerText = profit.toLocaleString();
+                }
+            }
+            // -------------------------------------------------------------
+
+            // 3. ส่วนแสดงค่าคอมมิชชั่นแบบละเอียด (ของเดิม)
+            if (globalSummary && globalSummary.commission !== undefined) {
+                 const commEl = document.getElementById('txtCommission');
+                 if(commEl) {
+                     commEl.innerText = (globalSummary.commission || 0).toLocaleString();
+                     
+                     // เพิ่มรายละเอียดที่มาของตัวเลข (Breakdown)
+                     if (globalSummary.commission_breakdown) {
+                         const bd = globalSummary.commission_breakdown;
+                         
+                         let detailHtml = `<div style="font-size:10px; color:#555; margin-top:5px; line-height:1.4; background:rgba(255,255,255,0.8); padding:5px; border-radius:4px;">
+                            <div>+ ยอดเก็บ: ${bd.revenue.toLocaleString()}</div>
+                            <div style="color:#c0392b;">- ทุนสินค้าใหม่: ${bd.product_cost_deduct.toLocaleString()}</div>
+                            <div style="color:#c0392b;">- รายจ่าย: ${bd.expense_deduct.toLocaleString()}</div>
+                            <div style="font-weight:bold; border-top:1px dashed #ccc; margin-top:2px; padding-top:2px;">= กำไรสุทธิ: ${bd.net_profit_month.toLocaleString()}</div>
+                         </div>`;
+                         
+                         let detailEl = document.getElementById('commDetailBox');
+                         if (!detailEl) {
+                             detailEl = document.createElement('div');
+                             detailEl.id = 'commDetailBox';
+                             commEl.parentNode.appendChild(detailEl);
+                         }
+                         detailEl.innerHTML = detailHtml;
+                     }
                  }
-                 detailEl.innerHTML = detailHtml;
-             }
-         }
-    }
-}
+            }
+        }
         function exportToExcel() { if (!filteredData.length) return Swal.fire('ไม่มีข้อมูล', 'กรุณาค้นหาหรือเลือกวันที่ก่อน', 'warning'); let csv = "data:text/csv;charset=utf-8,\uFEFFลำดับ,เลขสัญญา,ชื่อ,เบอร์,งวด,ยอด,สถานะ\n"; filteredData.forEach((i, idx) => csv += `${idx+1},"${i.c_no}","${i.b_name}","${i.b_mobile}",${i.installment_no},${i.finalAmount},"${i.status}"\n`); const link = document.createElement("a"); link.href = encodeURI(csv); link.download = "Report.csv"; link.click(); }
         function openPay(c_no) { window.open(`https://kamkywork.github.io/sale_bill/?ref=${c_no}`, '_blank'); }
         async function openManageMenu(idx, name, c_no) { const { value: action } = await Swal.fire({ title: name, input: 'select', inputOptions: { 'cancel_contract': '❌ ยกเลิกสัญญา', 'close_account': '✅ ปิดยอด' }, showCancelButton: true }); if(action){ Swal.fire({title:'ยืนยัน?',showCancelButton:true}).then(r=>{if(r.isConfirmed) executeAction({action,c_no,row_index:idx})}); } }
