@@ -187,7 +187,7 @@
     </div>
 
     <script>
-        const API_URL = 'https://script.google.com/macros/s/AKfycbyLAqqN2KYBoWiOpsyPo_lHI_jfAxj9W37l5d54vsX1DAmrty9p4fzUGh17TsRkkrH8gg/exec'; 
+        const API_URL = 'https://script.google.com/macros/s/AKfycbyAdNV-ZqUnfXZjwVx5O3wrr1rMEH-APNawFpGeoovJcsQVGZT69Ck5MyNZrtztGToYdw/exec'; 
         let currentUser = null;
         let currentTrackingData = [], filteredData = [], globalSummary = {};
         let contractGroups = {}; 
@@ -219,18 +219,57 @@
         }
         function doLogout() { localStorage.removeItem('kamky_user'); location.reload(); }
 
+        // 🟢 ฟังก์ชันช่วยเช็คสิทธิ์ (ใช้ได้กับทุก User ไม่เกี่ยง Role)
+        function checkPerm(menuCode) {
+            if (!currentUser) return false;
+            
+            // ดึงรายการสิทธิ์มา (ถ้าไม่มีให้เป็นค่าว่าง)
+            const userPerms = (currentUser.allowed_menus || "").toLowerCase();
+            
+            // เงื่อนไข: ถ้าเป็น role admin ให้ผ่านตลอด หรือ ถ้ามีชื่อเมนูในรายการสิทธิ์ก็ให้ผ่าน
+            // (หากคุณต้องการให้ Admin ก็ต้องติ๊กสิทธิ์เหมือนกัน ให้ลบเงื่อนไข currentUser.role === 'admin' ออกครับ)
+            if (currentUser.role === 'admin') return true; 
+            
+            return userPerms.includes(menuCode.toLowerCase());
+        }
+
+        // 🟢 ฟังก์ชันเริ่มระบบ (แก้ไขใหม่: เช็คสิทธิ์ตามที่ติ๊กเลือก)
         function initApp() {
+            // 1. จัดการหน้าจอ Login และ Profile
             document.getElementById('loginOverlay').style.display = 'none';
             document.getElementById('appTitle').innerHTML += ` <span class="user-profile-badge" onclick="userProfile()"><i class="fas fa-user"></i> ${currentUser.name}</span>`;
             document.getElementById('btnLogout').style.display = 'flex';
             if(!document.getElementById('filterDate').value) document.getElementById('filterDate').valueAsDate = new Date();
-            const isUser = currentUser.role !== 'admin';
-            if (isUser) { ['btnPrint','btnExcel','btnReset'].forEach(id => document.getElementById(id).style.display = 'none'); } 
-            else { 
-                document.getElementById('btnAdmin').style.display = 'flex'; 
-                document.getElementById('btnExpense').style.display = 'flex';
-				document.getElementById('btnShopReport').style.display = 'flex';
-            }
+
+            // 2. กำหนดการแสดงผลปุ่ม ตามสิทธิ์ที่ติ๊กเลือก (Permissions)
+            
+            // 2.1 สิทธิ์จัดการผู้ใช้งาน (manage_users) -> ปุ่ม Admin
+            const btnAdmin = document.getElementById('btnAdmin');
+            if (btnAdmin) btnAdmin.style.display = checkPerm('manage_users') ? 'flex' : 'none';
+
+            // 2.2 สิทธิ์บันทึกรายจ่าย (expense) -> ปุ่มบันทึกรายจ่าย
+            const btnExpense = document.getElementById('btnExpense');
+            if (btnExpense) btnExpense.style.display = checkPerm('expense') ? 'flex' : 'none';
+
+            // 2.3 สิทธิ์ดูรายงานโอนร้าน (shop_report) -> ปุ่มยอดโอนร้าน
+            const btnShopReport = document.getElementById('btnShopReport');
+            if (btnShopReport) btnShopReport.style.display = checkPerm('shop_report') ? 'flex' : 'none';
+
+            // 2.4 สิทธิ์ดูยอดปิดบัญชี (closed) -> ปุ่มปิด/ครบงวด
+            // (ต้องใช้ querySelector เพราะปุ่มนี้ใช้ class ไม่ได้ใช้ id โดยตรงในโค้ดเก่า)
+            const btnClosed = document.querySelector('.btn-closed');
+            if (btnClosed) btnClosed.style.display = checkPerm('closed') ? 'inline-flex' : 'none';
+
+            // 2.5 ปุ่มพื้นฐาน (Excel/Reset/Print) -> อนุญาตให้ Admin หรือคนที่มีสิทธิ์ 'manage_users' เห็น
+            // หรือถ้าคุณต้องการเปิดให้ทุกคนเห็น ให้ลบเงื่อนไข if นี้ออก
+            const commonTools = ['btnExcel', 'btnReset'];
+            const canManage = checkPerm('manage_users'); 
+            commonTools.forEach(id => {
+                const el = document.getElementById(id);
+                if(el) el.style.display = canManage ? 'flex' : 'none';
+            });
+
+            // 3. โหลดข้อมูล
             loadData();
         }
 
@@ -355,23 +394,72 @@
             }
         }
 
-        async function addUser() {
-            const { value: formValues } = await Swal.fire({
-                title: 'เพิ่มผู้ใช้งานใหม่',
-                html: `<input id="new-user" class="swal2-input" placeholder="Username (ไอดี)" style="margin-bottom:10px;"><input id="new-pass" class="swal2-input" placeholder="Password (รหัสผ่าน)" style="margin-bottom:10px;"><input id="new-name" class="swal2-input" placeholder="Display Name (ชื่อเรียก)" style="margin-bottom:10px;"><select id="new-role" class="swal2-input"><option value="user">User (พนักงาน)</option><option value="admin">Admin (ผู้ดูแล)</option></select>`,
-                focusConfirm: false, showCancelButton: true, confirmButtonText: 'บันทึก',
-                preConfirm: () => { return { username: document.getElementById('new-user').value, password: document.getElementById('new-pass').value, name: document.getElementById('new-name').value, role: document.getElementById('new-role').value } }
-            });
+        // 🟢 แก้ไขฟังก์ชัน addUser เพื่อเพิ่มการเลือกสิทธิ์
+async function addUser() {
+    const { value: formValues } = await Swal.fire({
+        title: 'เพิ่มผู้ใช้งานใหม่',
+        // 👇 เพิ่มส่วน Checkbox เลือกเมนูตรงนี้
+        html: `
+            <input id="new-user" class="swal2-input" placeholder="Username (ไอดี)" style="margin-bottom:10px;">
+            <input id="new-pass" class="swal2-input" placeholder="Password (รหัสผ่าน)" style="margin-bottom:10px;">
+            <input id="new-name" class="swal2-input" placeholder="Display Name (ชื่อเรียก)" style="margin-bottom:10px;">
+            <select id="new-role" class="swal2-input" style="margin-bottom:15px;">
+                <option value="user">User (พนักงาน)</option>
+                <option value="admin">Admin (ผู้ดูแล)</option>
+            </select>
+            
+            <div style="text-align:left; background:#f9f9f9; padding:10px; border-radius:8px; font-size:14px;">
+                <div style="font-weight:bold; margin-bottom:5px; color:#555;">กำหนดสิทธิ์การเข้าถึง (Permissions):</div>
+                <label style="cursor:pointer; display:block; margin-bottom:3px;">
+                    <input type="checkbox" class="perm-chk" value="dashboard"> 📊 ดู Dashboard (ยอดรวม/กำไร)
+                </label>
+                <label style="cursor:pointer; display:block; margin-bottom:3px;">
+                    <input type="checkbox" class="perm-chk" value="expense"> 💰 บันทึกรายจ่าย
+                </label>
+                <label style="cursor:pointer; display:block; margin-bottom:3px;">
+                    <input type="checkbox" class="perm-chk" value="shop_report"> 🏪 ดูรายงานโอนร้าน
+                </label>
+                <label style="cursor:pointer; display:block; margin-bottom:3px;">
+                    <input type="checkbox" class="perm-chk" value="closed"> ✅ ดูสัญญาปิดยอด/ครบงวด
+                </label>
+                 <label style="cursor:pointer; display:block;">
+                    <input type="checkbox" class="perm-chk" value="manage_users"> 👥 จัดการผู้ใช้งาน (Admin)
+                </label>
+            </div>
+        `,
+        focusConfirm: false,
+        showCancelButton: true,
+        confirmButtonText: 'บันทึก',
+        confirmButtonColor: '#27ae60',
+        preConfirm: () => {
+            // 👇 รวบรวมค่าจาก Checkbox ที่ถูกติ๊กไว้
+            const checkboxes = document.querySelectorAll('.perm-chk:checked');
+            const selectedMenus = Array.from(checkboxes).map(cb => cb.value).join(',');
 
-            if (formValues) {
-                if(!formValues.username || !formValues.password) return Swal.fire('Error', 'กรุณากรอกข้อมูลให้ครบ', 'error');
-                Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading() });
-                try {
-                    await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'add_user', ...formValues }) });
-                    Swal.fire('สำเร็จ', 'เพิ่มผู้ใช้เรียบร้อย', 'success').then(() => manageUsers());
-                } catch(e) { Swal.fire('Error', 'บันทึกไม่สำเร็จ', 'error'); }
-            }
+            return { 
+                username: document.getElementById('new-user').value, 
+                password: document.getElementById('new-pass').value, 
+                name: document.getElementById('new-name').value, 
+                role: document.getElementById('new-role').value,
+                allowed_menus: selectedMenus // ส่งค่าสิทธิ์ไปด้วย
+            } 
         }
+    });
+
+    if (formValues) {
+        if(!formValues.username || !formValues.password) return Swal.fire('Error', 'กรุณากรอกข้อมูลให้ครบ', 'error');
+        
+        Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading() });
+        
+        try {
+            // ส่ง action: 'add_user' พร้อมข้อมูลใหม่ไปที่ Google Apps Script
+            await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'add_user', ...formValues }) });
+            Swal.fire('สำเร็จ', 'เพิ่มผู้ใช้เรียบร้อย', 'success').then(() => manageUsers());
+        } catch(e) { 
+            Swal.fire('Error', 'บันทึกไม่สำเร็จ', 'error'); 
+        }
+    }
+}
 
         async function deleteUser(username) {
             Swal.fire({ title: `ลบผู้ใช้ ${username}?`, text: "จะไม่สามารถกู้คืนได้", icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'ยืนยันลบ' }).then(async (result) => {
@@ -484,18 +572,15 @@
             const selectedMonthStr = `${selectedYearTH}-${selectedMonthOnly}`; 
             contractGroups = { pending: [], normal: [], postpone: [], overdue: [] };
             let strictDailyCollected = 0; let strictMonthlyCollected = 0;
-            const isAdmin = (currentUser && currentUser.role === 'admin');
+            const canViewDash = checkPerm('dashboard');
 
             // ✅ แสดง Admin Dashboard ถ้าเป็น Admin
-            if (isAdmin) {
-                document.getElementById('adminDashboard').style.display = 'grid';
-                if (data.summary) {
-                    document.getElementById('txtTotalCost').innerText = (data.summary.total_cost || 0).toLocaleString();
-                    document.getElementById('txtNetProfit').innerText = (data.summary.net_profit || 0).toLocaleString();
-                }
-            } else {
-                document.getElementById('adminDashboard').style.display = 'none';
-            }
+            if (canViewDash) {
+    document.getElementById('adminDashboard').style.display = 'grid';
+    // ...
+} else {
+    document.getElementById('adminDashboard').style.display = 'none';
+}
 
             if (data.contracts) {
                 data.contracts.forEach(c => {
