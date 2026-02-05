@@ -130,7 +130,7 @@
         </div>
         <div class="tools-bar">
             <div class="search-box-group">
-                <input type="text" id="searchInput" class="search-input" placeholder="🔍 ค้นเลขสัญญา..." onkeyup="if(event.key==='Enter') doGlobalSearch()">
+                <input type="text" id="searchInput" class="search-input" placeholder="🔍 ค้นหารายละเอียดสัญญา..." onkeyup="if(event.key==='Enter') doGlobalSearch()">
                 <i class="fas fa-search btn-search-icon" onclick="doGlobalSearch()"></i>
             </div>
             
@@ -153,21 +153,22 @@
     </div>
 
     <div id="adminDashboard" class="perf-container" style="display:none; background:#f0f3f4; border-bottom:1px solid #ddd; padding-bottom:10px; margin-bottom: 0;">
-        <div class="stat-card" style="border-left: 5px solid #e74c3c;">
+        <div id="boxCost" class="stat-card" style="border-left: 5px solid #e74c3c;">
             <div class="stat-header"><i class="fas fa-box-open" style="color:#e74c3c"></i> <span>ต้นทุนรวม (Cost)</span></div>
             <div class="stat-body"><h1 id="txtTotalCost" class="big-number" style="color:#e74c3c; font-size:32px;">0</h1><span class="unit-text">บาท</span></div>
         </div>
-        <div class="stat-card" style="border-left: 5px solid #27ae60;">
+        <div id="boxProfit" class="stat-card" style="border-left: 5px solid #27ae60;">
             <div class="stat-header"><i class="fas fa-chart-line" style="color:#27ae60"></i> <span>กำไรสุทธิ (Profit)</span></div>
             <div class="stat-body"><h1 id="txtNetProfit" class="big-number" style="color:#27ae60; font-size:32px;">0</h1><span class="unit-text">บาท (ขาย - ทุน)</span></div>
         </div>
     </div>
 
     <div class="perf-container" id="statContainer">
-        <div class="stat-card">
+        <div id="cardDaily" class="stat-card">
             <div class="stat-header"><i class="fas fa-wallet" style="color:#ff6b6b"></i> <span>ยอดเก็บได้วันนี้ (Daily)</span></div>
             <div class="stat-body"><h1 id="txtTodayCollected" class="big-number" style="color:#4361ee;">0</h1><span class="unit-text">บาท</span></div>
         </div>
+
         <div class="stat-card">
             <div class="stat-header"><i class="fas fa-sack-dollar" style="color:#54a0ff"></i> <span>ยอดสะสมเดือนนี้ (Monthly)</span></div>
             <div class="stat-body"><h1 id="txtMonthCollected" class="big-number" style="color:#3f37c9;">0</h1><span class="unit-text">บาท</span></div>
@@ -187,7 +188,7 @@
     </div>
 
     <script>
-        const API_URL = 'https://script.google.com/macros/s/AKfycbxintDbI6MDvR_QMhYm4I55es3bKk57hnLrddFs0PfQMrNDbpz3f6wkHALuJmL7tuZqdg/exec'; 
+        const API_URL = 'https://script.google.com/macros/s/AKfycbyhYipPlm7ZMoeXTEjIWIUpypOL6wSOgO_7fGqd4GE_bTUTQjk5IB5LP9eop1njJRsNjQ/exec'; 
         let currentUser = null;
         let currentTrackingData = [], filteredData = [], globalSummary = {};
         let contractGroups = {}; 
@@ -561,7 +562,7 @@ async function addUser() {
         function renderDashboard(data, selectedDate, forceShowAll) {
             const container = document.getElementById('contractList'); 
             const polyContainer = document.getElementById('polygonContainer');
-			globalSummary = data.summary || {};
+            globalSummary = data.summary || {};
             container.innerHTML = ""; polyContainer.innerHTML = "";
             document.getElementById('contractListHeading').style.display = 'none';
             filteredData = [];
@@ -572,15 +573,35 @@ async function addUser() {
             const selectedMonthStr = `${selectedYearTH}-${selectedMonthOnly}`; 
             contractGroups = { pending: [], normal: [], postpone: [], overdue: [] };
             let strictDailyCollected = 0; let strictMonthlyCollected = 0;
-            const canViewDash = checkPerm('dashboard');
+            
+            // =========================================================
+            // 🟢 ส่วนจัดการสิทธิ์การมองเห็น (Visibility Control)
+            // =========================================================
+            const dashboard = document.getElementById('adminDashboard');
+            const boxCost = document.getElementById('boxCost');     // กล่องต้นทุน (Dashboard บน)
+            const cardDaily = document.getElementById('cardDaily'); // กล่องยอดรายวัน (Dashboard ล่าง)
 
-            // ✅ แสดง Admin Dashboard ถ้าเป็น Admin
-            if (canViewDash) {
-    document.getElementById('adminDashboard').style.display = 'grid';
-    // ...
-} else {
-    document.getElementById('adminDashboard').style.display = 'none';
-}
+            // เปิด Dashboard บนก่อนเสมอ
+            dashboard.style.display = 'grid'; 
+
+            if (currentUser && currentUser.role === 'admin') {
+                // --- กรณีเป็น ADMIN ---
+                // 1. เห็นกล่องต้นทุน + ปรับ Grid เป็น 2 คอลัมน์
+                boxCost.style.display = 'block';
+                dashboard.style.gridTemplateColumns = '1fr 1fr';
+                
+                // 2. เห็นกล่องยอดรายวัน
+                if(cardDaily) cardDaily.style.display = 'block';
+            } else {
+                // --- กรณีเป็น USER ทั่วไป ---
+                // 1. ซ่อนกล่องต้นทุน + ปรับ Grid เหลือ 1 คอลัมน์ (ให้กำไรเต็มจอ)
+                boxCost.style.display = 'none';
+                dashboard.style.gridTemplateColumns = '1fr';
+                
+                // 2. ซ่อนกล่องยอดรายวัน
+                if(cardDaily) cardDaily.style.display = 'none';
+            }
+            // =========================================================
 
             if (data.contracts) {
                 data.contracts.forEach(c => {
@@ -602,7 +623,10 @@ async function addUser() {
                     if (c.original_due_date !== selectedDateThai && c.postpone_date === selectedDateThai) { c.worksheetStatus = `เลื่อนมาจาก ${c.original_due_date}`; } else { if (isPendingStatus) { c.worksheetStatus = c.status === 'รอปิดยอด' ? 'รอปิดยอด' : 'รอตรวจสอบ'; } else { c.worksheetStatus = c.overdue_count > 0 ? 'ค้างชำระ' : 'ปกติ'; } }
                     let item = { ...c, finalAmount: amt, hasPostpone: hasPostpone };
                     filteredData.push(item);
-                    if (isPendingStatus) { if (isAdmin || !isPendingStatus) contractGroups.pending.push(item); } 
+                    
+                    if (isPendingStatus) { 
+                        if (currentUser.role === 'admin' || !isPendingStatus) contractGroups.pending.push(item); 
+                    } 
                     else if (isPostponedToToday) { contractGroups.postpone.push(item); }
                     else if (c.overdue_count > 0) { contractGroups.overdue.push(item); } 
                     else if (isTargetToday) { contractGroups.normal.push(item); }
@@ -616,7 +640,10 @@ async function addUser() {
                  if(commEl) commEl.innerText = (data.summary.commission || 0).toLocaleString(); 
             }
 
-            if (contractGroups.pending.length > 0 && isAdmin) { polyContainer.innerHTML += createPolygonHtml('pending', 'รอตรวจสอบ', contractGroups.pending.length, 'poly-bg-pending', 'fas fa-clock'); }
+            if (contractGroups.pending.length > 0 && currentUser.role === 'admin') { 
+                polyContainer.innerHTML += createPolygonHtml('pending', 'รอตรวจสอบ', contractGroups.pending.length, 'poly-bg-pending', 'fas fa-clock'); 
+            }
+            
             polyContainer.innerHTML += createPolygonHtml('normal', 'ปกติ (วันนี้)', contractGroups.normal.length, 'poly-bg-normal', 'fas fa-calendar-check');
             polyContainer.innerHTML += createPolygonHtml('postpone', 'เลื่อนนัดมาวันนี้', contractGroups.postpone.length, 'poly-bg-postpone', 'fas fa-history');
             polyContainer.innerHTML += createPolygonHtml('overdue', 'เกินกำหนด', contractGroups.overdue.length, 'poly-bg-overdue', 'fas fa-exclamation-circle');
@@ -788,55 +815,43 @@ async function addUser() {
         async function openContactImage(cNo) { Swal.showLoading(); try { const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'get_contract_image', c_no: cNo, type: 'contact_aw' }) }); const d = await res.json(); if(d.status==='success') { let fileId = ""; if(d.url.includes("id=")) { fileId = d.url.split('id=')[1].split('&')[0]; } if(fileId) { let previewUrl = `https://drive.google.com/file/d/${fileId}/preview`; Swal.fire({ html: `<iframe src="${previewUrl}" width="100%" height="450px" style="border:none; border-radius:8px;"></iframe>`, width: '600px', showCloseButton: true, confirmButtonText: 'ปิด' }); } else { Swal.fire({ imageUrl: d.url, width: '95%', confirmButtonText: 'ปิด' }); } } else Swal.fire({ icon: 'warning', title: 'ไม่พบข้อมูลเพิ่มเติม (AW)' }); } catch(e) { Swal.fire('Error', 'ผิดพลาด'); } }
         function formatDateToThai(dateString) { if(!dateString) return ""; const p = dateString.split('-'); let year = parseInt(p[0]) + 543; return `${p[2]}/${p[1]}/${year}`; }
         function updateCharts(dailyTarget, dailyCollected, monthlyTarget, monthlyCollected) { 
-            // 1. อัปเดตยอดเก็บได้วันนี้และเดือนนี้ (ของเดิม)
+            // 1. อัปเดตยอดเก็บได้วันนี้และเดือนนี้
             document.getElementById('txtTodayCollected').innerText = dailyCollected.toLocaleString(); 
             document.getElementById('txtMonthCollected').innerText = monthlyCollected.toLocaleString();
             
-            // -------------------------------------------------------------
-            // [เพิ่มใหม่] 2. ส่วนที่ขาดหายไป: อัปเดตต้นทุนรวม และ กำไรสุทธิ
-            // -------------------------------------------------------------
+            // 2. อัปเดตต้นทุนรวม และ กำไรสุทธิ (พร้อมเปลี่ยนสี)
             if (globalSummary) {
                 // อัปเดตต้นทุน (Total Cost)
                 if (document.getElementById('txtTotalCost')) {
-                    // ใช้ค่า total_cost จาก backend หรือถ้าไม่มีให้เป็น 0
                     let cost = globalSummary.total_cost || 0;
                     document.getElementById('txtTotalCost').innerText = cost.toLocaleString();
                 }
 
                 // อัปเดตกำไรสุทธิ (Net Profit)
                 if (document.getElementById('txtNetProfit')) {
-                    // ใช้ค่า net_profit จาก backend หรือถ้าไม่มีให้เป็น 0
                     let profit = globalSummary.net_profit || 0; 
-                    document.getElementById('txtNetProfit').innerText = profit.toLocaleString();
+                    let profitEl = document.getElementById('txtNetProfit');
+                    
+                    profitEl.innerText = profit.toLocaleString();
+
+                    // 🟢 Logic เปลี่ยนสี: ติดลบ=แดง, บวก=เขียว
+                    if (profit < 0) {
+                        profitEl.style.color = "#e74c3c"; // สีแดง
+                    } else {
+                        profitEl.style.color = "#27ae60"; // สีเขียว
+                    }
                 }
             }
-            // -------------------------------------------------------------
 
-            // 3. ส่วนแสดงค่าคอมมิชชั่นแบบละเอียด (ของเดิม)
+            // 3. แสดงค่าคอมมิชชั่น (แบบตัวเลขเพียวๆ ไม่มีรายละเอียดแล้ว)
             if (globalSummary && globalSummary.commission !== undefined) {
                  const commEl = document.getElementById('txtCommission');
                  if(commEl) {
                      commEl.innerText = (globalSummary.commission || 0).toLocaleString();
                      
-                     // เพิ่มรายละเอียดที่มาของตัวเลข (Breakdown)
-                     if (globalSummary.commission_breakdown) {
-                         const bd = globalSummary.commission_breakdown;
-                         
-                         let detailHtml = `<div style="font-size:10px; color:#555; margin-top:5px; line-height:1.4; background:rgba(255,255,255,0.8); padding:5px; border-radius:4px;">
-                            <div>+ ยอดเก็บ: ${bd.revenue.toLocaleString()}</div>
-                            <div style="color:#c0392b;">- ทุนสินค้าใหม่: ${bd.product_cost_deduct.toLocaleString()}</div>
-                            <div style="color:#c0392b;">- รายจ่าย: ${bd.expense_deduct.toLocaleString()}</div>
-                            <div style="font-weight:bold; border-top:1px dashed #ccc; margin-top:2px; padding-top:2px;">= กำไรสุทธิ: ${bd.net_profit_month.toLocaleString()}</div>
-                         </div>`;
-                         
-                         let detailEl = document.getElementById('commDetailBox');
-                         if (!detailEl) {
-                             detailEl = document.createElement('div');
-                             detailEl.id = 'commDetailBox';
-                             commEl.parentNode.appendChild(detailEl);
-                         }
-                         detailEl.innerHTML = detailHtml;
-                     }
+                     // 🟢 ลบส่วนแสดง Breakdown (Detail Box) ออก เพื่อให้เหลือแค่ยอดเงิน
+                     const oldDetail = document.getElementById('commDetailBox');
+                     if(oldDetail) oldDetail.remove(); 
                  }
             }
         }
