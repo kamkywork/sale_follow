@@ -83,7 +83,7 @@
         .text-purple { color: #8e44ad; } .text-red { color: #c0392b; }
         
         .btn-kebab { border: none; background: transparent; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--gray); }
-        .cust-body { padding: 0 15px 15px 15px; display: flex; justify-content: space-between; align-items: flex-end; }
+        .cust-body { padding: 0 15px 15px 15px 15px; display: flex; justify-content: space-between; align-items: flex-end; }
         .contact-line { font-size: 13px; color: #555; display: flex; align-items: center; gap: 6px; margin-top: 5px; }
         .amount-val { font-size: 22px; font-weight: 800; color: var(--dark); letter-spacing: -0.5px; }
         .cust-actions { padding: 10px 15px; background: rgba(255,255,255,0.5); border-top: 1px solid rgba(0,0,0,0.05); display: grid; gap: 10px; border-bottom-left-radius: var(--card-radius); border-bottom-right-radius: var(--card-radius); }
@@ -141,9 +141,9 @@
             
             <button class="btn-pill btn-closed" onclick="showClosedContracts()"><i class="fas fa-check-double"></i> ปิด/ครบงวด</button>
             <button id="btnExpense" class="btn-pill btn-expense" style="display:none;" onclick="recordExpense()"><i class="fas fa-file-invoice-dollar"></i> บันทึกรายจ่าย</button>
-			<button id="btnShopReport" class="btn-pill" style="background: linear-gradient(135deg, #11998e, #38ef7d); display:none;" onclick="showShopTransferReport()">
-				<i class="fas fa-money-bill-wave"></i> ยอดโอนร้าน
-			</button>
+            <button id="btnShopReport" class="btn-pill" style="background: linear-gradient(135deg, #11998e, #38ef7d); display:none;" onclick="showShopTransferReport()">
+                <i class="fas fa-money-bill-wave"></i> ยอดโอนร้าน
+            </button>
             <button id="btnPrint" class="btn-icon btn-print" onclick="printReport()"><i class="fas fa-print"></i></button>
             <button id="btnExcel" class="btn-icon btn-excel" onclick="exportToExcel()"><i class="fas fa-file-excel"></i></button>
             <button id="btnReset" class="btn-icon btn-reset" onclick="resetHidden()"><i class="fas fa-eye"></i></button>
@@ -188,7 +188,7 @@
     </div>
 
     <script>
-        const API_URL = 'https://script.google.com/macros/s/AKfycbw5XFnKks2y7xMlhSQQOFYIfkB5k4ijd2K-Zs72fXrN39Mrl6OsXJ2gA1ac0wqiWCQ2-w/exec'; 
+        const API_URL = 'https://script.google.com/macros/s/AKfycbwl1UxchsMzHSX1Sxav-3AmDOB-5GZcada-ml-UmqrDzje5--5vfocl4yrRND4cIuQKeA/exec'; 
         let currentUser = null;
         let currentTrackingData = [], filteredData = [], globalSummary = {};
         let contractGroups = {}; 
@@ -747,7 +747,14 @@ async function addUser() {
             const isPending = (c.status === 'Pending_Approve' || c.status === 'รอตรวจสอบ' || c.status === 'รอปิดยอด');
             const payBtn = isPending ? `<button class="user-checkbox-btn btn-disabled" disabled><i class="fas fa-clock"></i> รออนุมัติ</button>` : `<button class="user-checkbox-btn" onclick="userReqPay('${c.c_no}')"><i class="far fa-check-square"></i> แจ้งชำระ</button>`;
             const closeBtn = isPending ? `<button class="user-checkbox-btn btn-disabled" disabled><i class="fas fa-flag-checkered"></i> ปิดยอด</button>` : `<button class="user-checkbox-btn" onclick="userReqClose('${c.c_no}')" style="color:#c0392b;"><i class="fas fa-flag-checkered"></i> ขอปิดยอด</button>`;
-            actionButtonsHtml = `<a href="tel:${c.b_mobile}" class="btn-act btn-act-call"><i class="fas fa-phone"></i> โทร</a>${infoBtn}${contractBtn}${payBtn}<button class="user-checkbox-btn" onclick="userReqPostpone('${c.c_no}')"><i class="far fa-clock"></i> เลื่อนนัด</button>${closeBtn}<button class="user-checkbox-btn" style="grid-column: 1 / -1;" onclick="userAddNote('${c.c_no}')"><i class="fas fa-pen"></i> หมายเหตุ</button>`;
+            
+            // 🔥🔥🔥 [เพิ่มใหม่] ปุ่มติดตาม (Follow) 🔥🔥🔥
+            const followBtn = isPending ? 
+                `<button class="user-checkbox-btn btn-disabled" disabled><i class="fas fa-bullhorn"></i> ติดตาม</button>` : 
+                `<button class="user-checkbox-btn" onclick="userReqFollow('${c.c_no}')" style="color:#d35400;"><i class="fas fa-bullhorn"></i> ติดตาม</button>`;
+            
+            // เพิ่ม followBtn เข้าไปใน layout
+            actionButtonsHtml = `<a href="tel:${c.b_mobile}" class="btn-act btn-act-call"><i class="fas fa-phone"></i> โทร</a>${infoBtn}${contractBtn}${payBtn}<button class="user-checkbox-btn" onclick="userReqPostpone('${c.c_no}')"><i class="far fa-clock"></i> เลื่อนนัด</button>${followBtn}${closeBtn}<button class="user-checkbox-btn" style="grid-column: 1 / -1;" onclick="userAddNote('${c.c_no}')"><i class="fas fa-pen"></i> หมายเหตุ</button>`;
         }
     }
     
@@ -954,6 +961,83 @@ async function addUser() {
         showCloseButton: true,
         footer: '<button onclick="printShopReport()" style="border:none; background:none; color:blue; cursor:pointer; text-decoration:underline;">🖨️ พิมพ์รายงานนี้</button>'
     });
+}
+
+// 🔥🔥🔥 [เพิ่มใหม่] ฟังก์ชันสำหรับ User แจ้งติดตามหนี้ (Letter/Visit/BadDebt) 🔥🔥🔥
+async function userReqFollow(cNo) {
+    // 1. ให้เลือกหัวข้อ
+    const { value: actionType } = await Swal.fire({
+        title: 'เลือกวิธีติดตาม',
+        input: 'radio',
+        inputOptions: {
+            'letter': '1. ✉️ ส่งจดหมายทวงถาม',
+            'visit': '2. 🏠 ติดตามที่พักอาศัย',
+            'bad_debt': '3. ☠️ แจ้งหนี้เสีย (Blacklist)'
+        },
+        inputValidator: (value) => {
+            if (!value) return 'กรุณาเลือกหัวข้อการติดตาม';
+        },
+        showCancelButton: true,
+        confirmButtonText: 'ถัดไป',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#e67e22'
+    });
+
+    if (actionType) {
+        let payload = {};
+        
+        // 2. ถ้าเลือกส่งจดหมาย ให้ระบุวันที่
+        if (actionType === 'letter') {
+            const { value: letterDate } = await Swal.fire({
+                title: 'ระบุวันที่ส่งจดหมาย',
+                input: 'date',
+                inputLabel: 'วันที่ดำเนินการส่งจดหมายจริง',
+                showCancelButton: true,
+                confirmButtonText: 'ยืนยันส่งอนุมัติ',
+                confirmButtonColor: '#27ae60',
+                preConfirm: (date) => {
+                    if (!date) Swal.showValidationMessage('กรุณาเลือกวันที่');
+                    return date;
+                }
+            });
+            if (!letterDate) return; // กดยกเลิก
+            payload = { sub_action: 'req_letter', date: letterDate };
+        } 
+        // กรณีติดตามที่พัก
+        else if (actionType === 'visit') {
+            const { isConfirmed } = await Swal.fire({
+                title: 'ยืนยันแจ้งติดตามที่พัก?',
+                text: 'ระบบจะส่งคำขอไปยัง Admin เพื่อบันทึกสถานะ',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'ยืนยัน',
+                confirmButtonColor: '#27ae60'
+            });
+            if (!isConfirmed) return;
+            payload = { sub_action: 'req_visit' };
+        }
+        // กรณีแจ้งหนี้เสีย
+        else if (actionType === 'bad_debt') {
+             const { isConfirmed } = await Swal.fire({
+                title: 'แจ้งหนี้เสีย (Blacklist)?',
+                text: 'ใช้ในกรณีที่ติดตามไม่ได้แล้ว เพื่อให้ Admin พิจารณาตัดเป็นหนี้เสีย',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'ยืนยันแจ้งหนี้เสีย',
+                confirmButtonColor: '#c0392b'
+            });
+            if (!isConfirmed) return;
+            payload = { sub_action: 'req_bad_debt' };
+        }
+
+        // 3. ส่งข้อมูลไป Backend (ใช้ฟังก์ชัน sendUserRequest ที่มีอยู่แล้ว)
+        if (payload.sub_action) {
+            // ส่ง parameter เพิ่มเติมคือ action_type เพื่อให้ backend รู้
+            await sendUserRequest(payload.sub_action, cNo, { 
+                note: payload.date ? `วันที่ส่ง: ${payload.date}` : '-' 
+            });
+        }
+    }
 }
     </script>
 </body>
