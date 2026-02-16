@@ -193,7 +193,7 @@
     </div>
 
     <script>
-        const API_URL = 'https://script.google.com/macros/s/AKfycbwl1UxchsMzHSX1Sxav-3AmDOB-5GZcada-ml-UmqrDzje5--5vfocl4yrRND4cIuQKeA/exec'; 
+        const API_URL = 'https://script.google.com/macros/s/AKfycbz7rsBE2g_0eZhlzyWEPqTHS3OCDtPzJ0MLMCuNyqjNJdfEmVgnWbzkQJ7C5Ew1Dpi6Uw/exec'; 
         let currentUser = null;
         let currentTrackingData = [], filteredData = [], globalSummary = {};
         let contractGroups = {}; 
@@ -225,49 +225,31 @@
         }
         function doLogout() { localStorage.removeItem('kamky_user'); location.reload(); }
 
-        // 🟢 ฟังก์ชันช่วยเช็คสิทธิ์ (ใช้ได้กับทุก User ไม่เกี่ยง Role)
         function checkPerm(menuCode) {
             if (!currentUser) return false;
-            
-            // ดึงรายการสิทธิ์มา (ถ้าไม่มีให้เป็นค่าว่าง)
             const userPerms = (currentUser.allowed_menus || "").toLowerCase();
-            
-            // เงื่อนไข: ถ้าเป็น role admin ให้ผ่านตลอด หรือ ถ้ามีชื่อเมนูในรายการสิทธิ์ก็ให้ผ่าน
-            // (หากคุณต้องการให้ Admin ก็ต้องติ๊กสิทธิ์เหมือนกัน ให้ลบเงื่อนไข currentUser.role === 'admin' ออกครับ)
             if (currentUser.role === 'admin') return true; 
-            
             return userPerms.includes(menuCode.toLowerCase());
         }
 
-        // 🟢 ฟังก์ชันเริ่มระบบ (แก้ไขใหม่: เช็คสิทธิ์ตามที่ติ๊กเลือก)
         function initApp() {
-            // 1. จัดการหน้าจอ Login และ Profile
             document.getElementById('loginOverlay').style.display = 'none';
             document.getElementById('appTitle').innerHTML += ` <span class="user-profile-badge" onclick="userProfile()"><i class="fas fa-user"></i> ${currentUser.name}</span>`;
             document.getElementById('btnLogout').style.display = 'flex';
             if(!document.getElementById('filterDate').value) document.getElementById('filterDate').valueAsDate = new Date();
 
-            // 2. กำหนดการแสดงผลปุ่ม ตามสิทธิ์ที่ติ๊กเลือก (Permissions)
-            
-            // 2.1 สิทธิ์จัดการผู้ใช้งาน (manage_users) -> ปุ่ม Admin
             const btnAdmin = document.getElementById('btnAdmin');
             if (btnAdmin) btnAdmin.style.display = checkPerm('manage_users') ? 'flex' : 'none';
 
-            // 2.2 สิทธิ์บันทึกรายจ่าย (expense) -> ปุ่มบันทึกรายจ่าย
             const btnExpense = document.getElementById('btnExpense');
             if (btnExpense) btnExpense.style.display = checkPerm('expense') ? 'flex' : 'none';
 
-            // 2.3 สิทธิ์ดูรายงานโอนร้าน (shop_report) -> ปุ่มยอดโอนร้าน
             const btnShopReport = document.getElementById('btnShopReport');
             if (btnShopReport) btnShopReport.style.display = checkPerm('shop_report') ? 'flex' : 'none';
 
-            // 2.4 สิทธิ์ดูยอดปิดบัญชี (closed) -> ปุ่มปิด/ครบงวด
-            // (ต้องใช้ querySelector เพราะปุ่มนี้ใช้ class ไม่ได้ใช้ id โดยตรงในโค้ดเก่า)
             const btnClosed = document.querySelector('.btn-closed');
             if (btnClosed) btnClosed.style.display = checkPerm('closed') ? 'inline-flex' : 'none';
 
-            // 2.5 ปุ่มพื้นฐาน (Excel/Reset/Print) -> อนุญาตให้ Admin หรือคนที่มีสิทธิ์ 'manage_users' เห็น
-            // หรือถ้าคุณต้องการเปิดให้ทุกคนเห็น ให้ลบเงื่อนไข if นี้ออก
             const commonTools = ['btnExcel', 'btnReset'];
             const canManage = checkPerm('manage_users'); 
             commonTools.forEach(id => {
@@ -275,7 +257,6 @@
                 if(el) el.style.display = canManage ? 'flex' : 'none';
             });
 
-            // 3. โหลดข้อมูล
             loadData();
         }
 
@@ -345,7 +326,7 @@
         showCancelButton: true, confirmButtonText: 'บันทึก', cancelButtonText: 'ยกเลิก',
         preConfirm: () => { 
             return { 
-                sale_code: document.getElementById('exp-sale-code').value, // ✅ รับค่า Sale Code
+                sale_code: document.getElementById('exp-sale-code').value, 
                 type: document.getElementById('exp-type').value, 
                 amount: document.getElementById('exp-amount').value, 
                 note: document.getElementById('exp-note').value 
@@ -362,7 +343,7 @@
                 body: JSON.stringify({ 
                     action: 'add_expense', 
                     date: new Date().toISOString().split('T')[0], 
-                    sale_code: formValues.sale_code, // ✅ ส่งค่า Sale Code ไปบันทึก
+                    sale_code: formValues.sale_code, 
                     type: formValues.type, 
                     amount: formValues.amount, 
                     note: formValues.note, 
@@ -374,9 +355,6 @@
     }
 }
 
-        // ==========================================
-        // ✅ User Management
-        // ==========================================
         async function manageUsers() {
             if (!currentUser || currentUser.role !== 'admin') return Swal.fire('Error', 'Access Denied', 'error');
             Swal.fire({ title: 'กำลังโหลดรายชื่อ...', didOpen: () => Swal.showLoading() });
@@ -400,11 +378,9 @@
             }
         }
 
-        // 🟢 แก้ไขฟังก์ชัน addUser เพื่อเพิ่มการเลือกสิทธิ์
 async function addUser() {
     const { value: formValues } = await Swal.fire({
         title: 'เพิ่มผู้ใช้งานใหม่',
-        // 👇 เพิ่มส่วน Checkbox เลือกเมนูตรงนี้
         html: `
             <input id="new-user" class="swal2-input" placeholder="Username (ไอดี)" style="margin-bottom:10px;">
             <input id="new-pass" class="swal2-input" placeholder="Password (รหัสผ่าน)" style="margin-bottom:10px;">
@@ -438,7 +414,6 @@ async function addUser() {
         confirmButtonText: 'บันทึก',
         confirmButtonColor: '#27ae60',
         preConfirm: () => {
-            // 👇 รวบรวมค่าจาก Checkbox ที่ถูกติ๊กไว้
             const checkboxes = document.querySelectorAll('.perm-chk:checked');
             const selectedMenus = Array.from(checkboxes).map(cb => cb.value).join(',');
 
@@ -447,7 +422,7 @@ async function addUser() {
                 password: document.getElementById('new-pass').value, 
                 name: document.getElementById('new-name').value, 
                 role: document.getElementById('new-role').value,
-                allowed_menus: selectedMenus // ส่งค่าสิทธิ์ไปด้วย
+                allowed_menus: selectedMenus 
             } 
         }
     });
@@ -458,7 +433,6 @@ async function addUser() {
         Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading() });
         
         try {
-            // ส่ง action: 'add_user' พร้อมข้อมูลใหม่ไปที่ Google Apps Script
             await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'add_user', ...formValues }) });
             Swal.fire('สำเร็จ', 'เพิ่มผู้ใช้เรียบร้อย', 'success').then(() => manageUsers());
         } catch(e) { 
@@ -478,7 +452,6 @@ async function addUser() {
                 }
             });
         }
-        // ==========================================
 
         async function doGlobalSearch() {
             const keyword = document.getElementById('searchInput').value.trim();
@@ -517,7 +490,6 @@ async function addUser() {
             renderDirectList(closedList);
         }
 
-        // ✅ ฟังก์ชันแสดงสัญญาทั้งหมด (เรียงสถานะ)
         function showAllContracts() {
             if(!currentTrackingData || currentTrackingData.length === 0) { alert('กำลังโหลดข้อมูล...'); return; }
             
@@ -529,7 +501,6 @@ async function addUser() {
             document.getElementById('contractListHeading').style.display = 'none';
             document.getElementById('txtSearchKeyword').innerText = `สัญญาทั้งหมด (${currentTrackingData.length} รายการ) - เรียงตามสถานะ`;
 
-            // เรียงลำดับข้อมูล: ปกติ -> ค้าง -> ปิดยอด -> หนี้เสีย
             let sortedData = [...currentTrackingData].sort((a, b) => {
                 const getPriority = (c) => {
                     const isClosed = (c.status === 'Paid' || c.status === 'Close');
@@ -538,12 +509,11 @@ async function addUser() {
                     if (isBadDebt) return 4;
                     if (isClosed) return 3;
                     if (c.overdue_count > 0) return 2;
-                    return 1; // Normal
+                    return 1; 
                 };
                 return getPriority(a) - getPriority(b);
             });
 
-            // แปลงข้อมูลและเติมสถานะท้ายชื่อ
             filteredData = sortedData.map(c => {
                 let amt = parseFloat(c.amount || 0) * (c.overdue_count > 1 ? c.overdue_count : 1);
                 let statusSuffix = "";
@@ -579,34 +549,21 @@ async function addUser() {
             contractGroups = { pending: [], normal: [], postpone: [], overdue: [] };
             let strictDailyCollected = 0; let strictMonthlyCollected = 0;
             
-            // =========================================================
-            // 🟢 ส่วนจัดการสิทธิ์การมองเห็น (Visibility Control)
-            // =========================================================
             const dashboard = document.getElementById('adminDashboard');
-            const boxCost = document.getElementById('boxCost');     // กล่องต้นทุน (Dashboard บน)
-            const cardDaily = document.getElementById('cardDaily'); // กล่องยอดรายวัน (Dashboard ล่าง)
+            const boxCost = document.getElementById('boxCost');     
+            const cardDaily = document.getElementById('cardDaily'); 
 
-            // เปิด Dashboard บนก่อนเสมอ
             dashboard.style.display = 'grid'; 
 
             if (currentUser && currentUser.role === 'admin') {
-                // --- กรณีเป็น ADMIN ---
-                // 1. เห็นกล่องต้นทุน + ปรับ Grid เป็น 2 คอลัมน์
                 boxCost.style.display = 'block';
                 dashboard.style.gridTemplateColumns = '1fr 1fr';
-                
-                // 2. เห็นกล่องยอดรายวัน
                 if(cardDaily) cardDaily.style.display = 'block';
             } else {
-                // --- กรณีเป็น USER ทั่วไป ---
-                // 1. ซ่อนกล่องต้นทุน + ปรับ Grid เหลือ 1 คอลัมน์ (ให้กำไรเต็มจอ)
                 boxCost.style.display = 'none';
                 dashboard.style.gridTemplateColumns = '1fr';
-                
-                // 2. ซ่อนกล่องยอดรายวัน
                 if(cardDaily) cardDaily.style.display = 'none';
             }
-            // =========================================================
 
             if (data.contracts) {
                 data.contracts.forEach(c => {
@@ -678,14 +635,13 @@ async function addUser() {
         function createCardHtml(c) {
     if (c.finalAmount === undefined) { c.finalAmount = parseFloat(c.amount || 0) * (c.overdue_count > 1 ? c.overdue_count : 1); }
     if (c.hasPostpone === undefined) { c.hasPostpone = (c.postpone_date && c.postpone_date !== "-" && c.postpone_date !== ""); }
-    const isAdmin = currentUser.role === 'admin'; // เช็คสิทธิ์เพื่อใช้กับปุ่มจัดการ (Edit/Delete) เท่านั้น
+    const isAdmin = currentUser.role === 'admin'; 
     
     let cardClass = isSearchMode ? "card-search-result" : "card-normal"; 
     let statusHtml = `<span class="status-text text-green"><i class="fas fa-check-circle"></i> ปกติ</span>`;
     let hasPaymentNote = c.last_note && c.last_note.includes('แจ้งชำระ');
     const isClosed = (c.status === 'Paid' || c.status === 'Close');
 
-    // Logic สีการ์ดและสถานะ
     if (c.status === 'Pending_Approve' || c.status === 'รอตรวจสอบ') { 
         cardClass = "card-pending-approve"; 
         if(isAdmin) statusHtml = `<span class="status-text text-orange" onclick="adminApprove('${c.c_no}', ${c.row_index}, '${c.request_date}', '${c.last_note || ''}', 'postpone')">⏳ รอตรวจสอบ (กด)</span>`; 
@@ -702,18 +658,15 @@ async function addUser() {
 
     if (hasPaymentNote) { let noteContent = linkify(c.last_note); statusHtml += `<div style="font-size:11px; color:#4361ee; background:#eef2ff; padding:6px; border-radius:4px; margin-top:4px; border:1px solid #dce6ff; white-space:normal; word-break:break-all;">💰 ${noteContent}</div>`; }
 
-    // 🟢 ส่วนแสดงผล ROI / กำไร (ปลดล็อกให้ทุกคนเห็น)
     let financialHtml = '';
-    // ✅ เอา if (isAdmin) ออก เพื่อให้ทุกคนเห็นข้อมูลชุดนี้
     let profitClass = c.current_profit >= 0 ? 'color:#27ae60;' : 'color:#c0392b;';
     let profitIcon = c.current_profit >= 0 ? '📈 กำไร' : '📉 ยังไม่คืนทุน';
     
-    // คำนวณความกว้าง Progress Bar
     let progressPercent = 0;
     if (c.product_cost > 0) {
         progressPercent = (c.total_revenue / c.product_cost) * 100;
     } else {
-        progressPercent = 100; // ถ้าไม่มีต้นทุน ถือว่าคืนทุนทันที
+        progressPercent = 100; 
     }
     if (progressPercent > 100) progressPercent = 100;
 
@@ -733,7 +686,6 @@ async function addUser() {
         </div>
     `;
 
-    // ส่วนปุ่มกด (ยังคงแยกสิทธิ์ Admin/User เหมือนเดิมเพื่อป้องกัน User ไปกดลบมั่ว)
     let menuButton = isAdmin ? `<button class="btn-kebab" style="margin-left:5px;" onclick="openManageMenu(${c.row_index},'${c.b_name}','${c.c_no}')">⋮</button>` : '';
     let actionButtonsHtml = '', gridClass = '';
     const hasExtraInfo = (c.contact_image && c.contact_image !== "" && c.contact_image !== "-");
@@ -753,12 +705,10 @@ async function addUser() {
             const payBtn = isPending ? `<button class="user-checkbox-btn btn-disabled" disabled><i class="fas fa-clock"></i> รออนุมัติ</button>` : `<button class="user-checkbox-btn" onclick="userReqPay('${c.c_no}')"><i class="far fa-check-square"></i> แจ้งชำระ</button>`;
             const closeBtn = isPending ? `<button class="user-checkbox-btn btn-disabled" disabled><i class="fas fa-flag-checkered"></i> ปิดยอด</button>` : `<button class="user-checkbox-btn" onclick="userReqClose('${c.c_no}')" style="color:#c0392b;"><i class="fas fa-flag-checkered"></i> ขอปิดยอด</button>`;
             
-            // 🔥🔥🔥 [เพิ่มใหม่] ปุ่มติดตาม (Follow) 🔥🔥🔥
             const followBtn = isPending ? 
                 `<button class="user-checkbox-btn btn-disabled" disabled><i class="fas fa-bullhorn"></i> ติดตาม</button>` : 
                 `<button class="user-checkbox-btn" onclick="userReqFollow('${c.c_no}')" style="color:#d35400;"><i class="fas fa-bullhorn"></i> ติดตาม</button>`;
             
-            // เพิ่ม followBtn เข้าไปใน layout
             actionButtonsHtml = `<a href="tel:${c.b_mobile}" class="btn-act btn-act-call"><i class="fas fa-phone"></i> โทร</a>${infoBtn}${contractBtn}${payBtn}<button class="user-checkbox-btn" onclick="userReqPostpone('${c.c_no}')"><i class="far fa-clock"></i> เลื่อนนัด</button>${followBtn}${closeBtn}<button class="user-checkbox-btn" style="grid-column: 1 / -1;" onclick="userAddNote('${c.c_no}')"><i class="fas fa-pen"></i> หมายเหตุ</button>`;
         }
     }
@@ -826,47 +776,50 @@ async function addUser() {
         async function openContractPopup(cNo) { Swal.fire({ title: 'กำลังโหลด...', allowOutsideClick: false, didOpen: () => Swal.showLoading() }); try { const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'get_contract_image', c_no: String(cNo) }) }); const d = await res.json(); if(d.status === 'success') { let fileId = ""; if(d.url.includes("id=")) { fileId = d.url.split('id=')[1].split('&')[0]; } if(fileId) { let previewUrl = `https://drive.google.com/file/d/${fileId}/preview`; Swal.fire({ html: `<div style="position:relative; padding-bottom:10px;"><iframe src="${previewUrl}" width="100%" height="450px" style="border:none; border-radius:8px;"></iframe></div>`, width: '600px', showCloseButton: true, confirmButtonText: 'ปิด', footer: `<a href="${d.url}" target="_blank" style="color:#4361ee; font-weight:bold; text-decoration:underline;">หากรูปไม่ขึ้น คลิกที่นี่เพื่อเปิดแอป Drive</a>` }); } else { Swal.fire({ imageUrl: d.url, width: '95%', confirmButtonText: 'ปิด' }); } } else { Swal.fire({ icon: 'warning', title: 'ไม่พบไฟล์รูปสัญญา' }); } } catch(e) { Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาดในการโหลด' }); } }
         async function openContactImage(cNo) { Swal.showLoading(); try { const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'get_contract_image', c_no: cNo, type: 'contact_aw' }) }); const d = await res.json(); if(d.status==='success') { let fileId = ""; if(d.url.includes("id=")) { fileId = d.url.split('id=')[1].split('&')[0]; } if(fileId) { let previewUrl = `https://drive.google.com/file/d/${fileId}/preview`; Swal.fire({ html: `<iframe src="${previewUrl}" width="100%" height="450px" style="border:none; border-radius:8px;"></iframe>`, width: '600px', showCloseButton: true, confirmButtonText: 'ปิด' }); } else { Swal.fire({ imageUrl: d.url, width: '95%', confirmButtonText: 'ปิด' }); } } else Swal.fire({ icon: 'warning', title: 'ไม่พบข้อมูลเพิ่มเติม (AW)' }); } catch(e) { Swal.fire('Error', 'ผิดพลาด'); } }
         function formatDateToThai(dateString) { if(!dateString) return ""; const p = dateString.split('-'); let year = parseInt(p[0]) + 543; return `${p[2]}/${p[1]}/${year}`; }
+        
+        // 🔥🔥🔥 [แก้ไข] ฟังก์ชัน updateCharts ดึงค่าจาก globalSummary ที่ Backend ส่งมาให้ 🔥🔥🔥
         function updateCharts(dailyTarget, dailyCollected, monthlyTarget, monthlyCollected) { 
-            // 1. อัปเดตยอดเก็บได้วันนี้และเดือนนี้
-            document.getElementById('txtTodayCollected').innerText = dailyCollected.toLocaleString(); 
-            document.getElementById('txtMonthCollected').innerText = monthlyCollected.toLocaleString();
-            
-            // 2. อัปเดตต้นทุนรวม และ กำไรสุทธิ (พร้อมเปลี่ยนสี)
             if (globalSummary) {
-                // อัปเดตต้นทุน (Total Cost)
+                // 1. ยอดเก็บได้วันนี้ (ใช้ daily_collected จาก Backend)
+                if (globalSummary.daily_collected !== undefined) {
+                    dailyCollected = globalSummary.daily_collected;
+                }
+                
+                // 2. ยอดสะสมเดือนนี้ (ใช้จาก commission_breakdown.revenue จาก Backend)
+                if (globalSummary.commission_breakdown && globalSummary.commission_breakdown.revenue !== undefined) {
+                    monthlyCollected = globalSummary.commission_breakdown.revenue;
+                }
+
+                document.getElementById('txtTodayCollected').innerText = dailyCollected.toLocaleString(); 
+                document.getElementById('txtMonthCollected').innerText = monthlyCollected.toLocaleString();
+                
                 if (document.getElementById('txtTotalCost')) {
                     let cost = globalSummary.total_cost || 0;
                     document.getElementById('txtTotalCost').innerText = cost.toLocaleString();
                 }
 
-                // อัปเดตกำไรสุทธิ (Net Profit)
                 if (document.getElementById('txtNetProfit')) {
                     let profit = globalSummary.net_profit || 0; 
                     let profitEl = document.getElementById('txtNetProfit');
-                    
                     profitEl.innerText = profit.toLocaleString();
-
-                    // 🟢 Logic เปลี่ยนสี: ติดลบ=แดง, บวก=เขียว
                     if (profit < 0) {
-                        profitEl.style.color = "#e74c3c"; // สีแดง
+                        profitEl.style.color = "#e74c3c"; 
                     } else {
-                        profitEl.style.color = "#27ae60"; // สีเขียว
+                        profitEl.style.color = "#27ae60"; 
                     }
                 }
             }
 
-            // 3. แสดงค่าคอมมิชชั่น (แบบตัวเลขเพียวๆ ไม่มีรายละเอียดแล้ว)
             if (globalSummary && globalSummary.commission !== undefined) {
                  const commEl = document.getElementById('txtCommission');
                  if(commEl) {
                      commEl.innerText = (globalSummary.commission || 0).toLocaleString();
-                     
-                     // 🟢 ลบส่วนแสดง Breakdown (Detail Box) ออก เพื่อให้เหลือแค่ยอดเงิน
                      const oldDetail = document.getElementById('commDetailBox');
                      if(oldDetail) oldDetail.remove(); 
                  }
             }
         }
+
         function exportToExcel() { if (!filteredData.length) return Swal.fire('ไม่มีข้อมูล', 'กรุณาค้นหาหรือเลือกวันที่ก่อน', 'warning'); let csv = "data:text/csv;charset=utf-8,\uFEFFลำดับ,เลขสัญญา,ชื่อ,เบอร์,งวด,ยอด,สถานะ\n"; filteredData.forEach((i, idx) => csv += `${idx+1},"${i.c_no}","${i.b_name}","${i.b_mobile}",${i.installment_no},${i.finalAmount},"${i.status}"\n`); const link = document.createElement("a"); link.href = encodeURI(csv); link.download = "Report.csv"; link.click(); }
         function openPay(c_no) { window.open(`https://kamkywork.github.io/sale_bill/?ref=${c_no}`, '_blank'); }
         async function openManageMenu(idx, name, c_no) { const { value: action } = await Swal.fire({ title: name, input: 'select', inputOptions: { 'cancel_contract': '❌ ยกเลิกสัญญา', 'close_account': '✅ ปิดยอด' }, showCancelButton: true }); if(action){ Swal.fire({title:'ยืนยัน?',showCancelButton:true}).then(r=>{if(r.isConfirmed) executeAction({action,c_no,row_index:idx})}); } }
@@ -883,22 +836,10 @@ async function addUser() {
         }
 		
 		function showShopTransferReport() {
-    // 1. กรองเฉพาะสัญญาที่เกิดขึ้นใน "วันที่เลือก" (ตาม filterDate)
-    const selectedDate = document.getElementById('filterDate').value; // รูปแบบ YYYY-MM-DD
+    const selectedDate = document.getElementById('filterDate').value; 
     
-    // แปลงวันที่เลือกเป็นรูปแบบไทย (เช่น 01/02/69) เพื่อเทียบกับ c_date ในฐานข้อมูล
-    // หมายเหตุ: ต้องมั่นใจว่าใน Google Sheet เก็บ c_date เป็นรูปแบบไหน (ในโค้ดเดิมเห็นใช้ formatDateToThai)
-    // แต่เพื่อความชัวร์ เราจะเทียบจาก ISO Date หรือวันที่ที่โหลดมา
-    
-    // กรองข้อมูล: เอาเฉพาะรายการที่ c_date (วันที่สัญญา) ตรงกับวันที่เลือก
-    // และสถานะไม่ใช่ 'ยกเลิก'
     const dailyContracts = currentTrackingData.filter(c => {
-        // แปลง c_date จากไทยหรือรูปแบบอื่นให้เทียบกับ selectedDate ได้
-        // สมมติว่า c_date_iso (YYYY-MM-DD) ถูกส่งมาจากหลังบ้าน หรือเทียบผ่านฟอร์แมตไทย
-        // ในที่นี้ขอใช้การเทียบแบบง่าย ถ้าในระบบมี field วันที่แบบ iso จะแม่นยำที่สุด
-        // ถ้าไม่มี ให้ดูวันที่สร้าง (create_date) หรือ c_date ที่ตรงกับ formatDateToThai(selectedDate)
-        
-        let targetDateThai = formatDateToThai(selectedDate); // แปลงวันที่เลือกเป็นไทย 1/2/69
+        let targetDateThai = formatDateToThai(selectedDate); 
         return c.c_date === targetDateThai; 
     });
 
@@ -907,11 +848,8 @@ async function addUser() {
         return;
     }
 
-    // 2. สร้างตาราง HTML
     let totalTransfer = 0;
     let tableRows = dailyContracts.map((c, index) => {
-        // ดึงค่ายอดโอน (สมมติว่า backend ส่งมาชื่อ shop_transfer_amount)
-        // ถ้าไม่มีให้คำนวณคร่าวๆ (product_cost - p_down) แต่น่าจะส่งมาตรงๆ ดีกว่า
         let transferAmt = parseFloat(String(c.shop_transfer_amount || 0).replace(/,/g,''));
         totalTransfer += transferAmt;
 
@@ -930,7 +868,6 @@ async function addUser() {
         `;
     }).join('');
 
-    // 3. แสดงผลด้วย SweetAlert
     Swal.fire({
         title: `สรุปยอดโอนคืนร้านค้า`,
         html: `
@@ -968,17 +905,14 @@ async function addUser() {
     });
 }
 
-// 🔥🔥🔥 [เพิ่มใหม่] ฟังก์ชันสำหรับ User แจ้งติดตามหนี้ (Letter/Visit/BadDebt) 🔥🔥🔥
 async function userReqFollow(cNo) {
-    // 1. ให้เลือกหัวข้อ
     const { value: actionType } = await Swal.fire({
         title: 'เลือกวิธีติดตาม',
         input: 'radio',
         inputOptions: {
-            // 🟢 แก้ไขลำดับตรงนี้ (สลับ visit ขึ้นก่อน letter)
-            'visit': '1. 🏠 ติดตามที่พักอาศัย',      // ย้ายอันนี้ขึ้นมาเป็นเบอร์ 1
-            'letter': '2. ✉️ ส่งจดหมายทวงถาม',      // ย้ายอันนี้ลงไปเป็นเบอร์ 2
-            'bad_debt': '3. ☠️ แจ้งหนี้เสีย (Blacklist)' // อันนี้ไว้ที่สุดท้ายเหมือนเดิม
+            'visit': '1. 🏠 ติดตามที่พักอาศัย',      
+            'letter': '2. ✉️ ส่งจดหมายทวงถาม',      
+            'bad_debt': '3. ☠️ แจ้งหนี้เสีย (Blacklist)' 
         },
         inputValidator: (value) => {
             if (!value) return 'กรุณาเลือกหัวข้อการติดตาม';
@@ -992,7 +926,6 @@ async function userReqFollow(cNo) {
     if (actionType) {
         let payload = {};
         
-        // 2. ถ้าเลือกส่งจดหมาย ให้ระบุวันที่
         if (actionType === 'letter') {
             const { value: letterDate } = await Swal.fire({
                 title: 'ระบุวันที่ส่งจดหมาย',
@@ -1006,10 +939,9 @@ async function userReqFollow(cNo) {
                     return date;
                 }
             });
-            if (!letterDate) return; // กดยกเลิก
+            if (!letterDate) return; 
             payload = { sub_action: 'req_letter', date: letterDate };
         } 
-        // กรณีติดตามที่พัก
         else if (actionType === 'visit') {
             const { isConfirmed } = await Swal.fire({
                 title: 'ยืนยันแจ้งติดตามที่พัก?',
@@ -1022,7 +954,6 @@ async function userReqFollow(cNo) {
             if (!isConfirmed) return;
             payload = { sub_action: 'req_visit' };
         }
-        // กรณีแจ้งหนี้เสีย
         else if (actionType === 'bad_debt') {
              const { isConfirmed } = await Swal.fire({
                 title: 'แจ้งหนี้เสีย (Blacklist)?',
@@ -1036,9 +967,7 @@ async function userReqFollow(cNo) {
             payload = { sub_action: 'req_bad_debt' };
         }
 
-        // 3. ส่งข้อมูลไป Backend (ใช้ฟังก์ชัน sendUserRequest ที่มีอยู่แล้ว)
         if (payload.sub_action) {
-            // ส่ง parameter เพิ่มเติมคือ action_type เพื่อให้ backend รู้
             await sendUserRequest(payload.sub_action, cNo, { 
                 note: payload.date ? `วันที่ส่ง: ${payload.date}` : '-' 
             });
