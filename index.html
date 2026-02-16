@@ -107,6 +107,11 @@
         @keyframes slideDown { from {opacity:0; transform:translateY(-10px);} to {opacity:1; transform:translateY(0);} }
         .swal2-file-input { font-size: 14px; margin-top: 10px; }
     </style>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#4361ee">	
 </head>
 <body>
 
@@ -188,7 +193,7 @@
     </div>
 
     <script>
-        const API_URL = 'https://script.google.com/macros/s/AKfycbw8dBnzsUiQFNLzd6uhVV-HXMQcrPeeHVows4gx8rwj3YpP0_GSGrB0qe7vKSFP0yWK/exec'; 
+        const API_URL = 'https://script.google.com/macros/s/AKfycbwl1UxchsMzHSX1Sxav-3AmDOB-5GZcada-ml-UmqrDzje5--5vfocl4yrRND4cIuQKeA/exec'; 
         let currentUser = null;
         let currentTrackingData = [], filteredData = [], globalSummary = {};
         let contractGroups = {}; 
@@ -1041,5 +1046,16 @@ async function userReqFollow(cNo) {
     }
 }
     </script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function() {
+      navigator.serviceWorker.register('./sw.js').then(function(registration) {
+        console.log('ServiceWorker registration successful with scope: ', registration.scope);
+      }, function(err) {
+        console.log('ServiceWorker registration failed: ', err);
+      });
+    });
+  }
+</script>
 </body>
 </html>
