@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ระบบติดตามยอด - Collection System (V.Final Complete)</title>
+    <title>ระบบติดตามยอด - Collection System (V.Final Fixed)</title>
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -193,10 +193,25 @@
     </div>
 
     <script>
-        const API_URL = 'https://script.google.com/macros/s/AKfycbymlWMvCjRobbE28bLaY4YmMzZqZveTlgnb9YPXNNeqfWrdH3jvZvpsF2DfOaF5OHj4Fg/exec'; 
+        const API_URL = 'https://script.google.com/macros/s/AKfycbzJ1tRVYz_uyOaCx1lFeNhNw0MKzYjXQ93puF8PyS3MNSVR_NHWjCgifcW9BvEEcskhJg/exec'; 
         let currentUser = null;
         let currentTrackingData = [], filteredData = [], globalSummary = {};
+        
+        // 🟢 ประกาศตัวแปร Global (สำคัญมาก ห้ามลบ)
+        let contractGroups = { pending: [], normal: [], postpone: [], overdue: [] };
+        let isSearchMode = false; // ✅ แก้ไข: เพิ่มตัวแปรนี้เพื่อไม่ให้ Error
+
         const toBase64 = file => new Promise((resolve, reject) => { const reader = new FileReader(); reader.readAsDataURL(file); reader.onload = () => resolve(reader.result); reader.onerror = error => reject(error); });
+        
+        // ฟังก์ชันแปลงข้อความให้ปลอดภัย (ป้องกันบั๊กปุ่มกดไม่ติดกรณีมีเว้นวรรคหรือ quote)
+        function escapeHtml(text) {
+            if (!text) return "";
+            return String(text)
+                .replace(/'/g, "\\'")  // Escape single quote
+                .replace(/"/g, "&quot;") // Escape double quote
+                .replace(/\n/g, " ");   // ลบ Newline
+        }
+
         function linkify(text) { if (!text) return ''; const urlRegex = /(https?:\/\/[^\]\s]+)/g; return text.replace(urlRegex, function(url) { let downloadUrl = url; if(url.includes('drive.google.com') && url.includes('export=view')) { downloadUrl = url.replace('export=view', 'export=download'); } return `<span style="display:inline-flex; align-items:center; gap:4px; vertical-align:middle; margin-right:5px;"><a href="${url}" target="_blank" style="text-decoration:none; background:#e3f2fd; color:#1565c0; padding:2px 6px; border-radius:4px; font-size:11px; border:1px solid #90caf9;"><i class="fas fa-eye"></i> ดู</a><a href="${downloadUrl}" target="_blank" style="text-decoration:none; background:#ffebee; color:#c62828; padding:2px 6px; border-radius:4px; font-size:11px; border:1px solid #ef9a9a;" title="บันทึกรูป"><i class="fas fa-save"></i></a></span>`; }); }
 
         window.onload = function() {
@@ -205,7 +220,6 @@
             else { document.getElementById('filterDate').valueAsDate = new Date(); }
         };
 
-        // 🔥 แก้ไข 1: Login ปกติ + บันทึก Session ลงรายการ
         async function doLogin() {
             const u = document.getElementById('loginUser').value.trim();
             const p = document.getElementById('loginPass').value.trim();
@@ -217,45 +231,32 @@
                 const res = await fetch(API_URL, { method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({action:'login', username:u, password:p}) });
                 const d = await res.json();
                 if(d.status === 'success') {
-                    // ✅ บันทึก User ปัจจุบัน และ เพิ่มลงใน Saved Sessions
                     saveSession(d.user);
-                    location.reload(); // รีโหลดเพื่อเข้าสู่ระบบ
+                    location.reload(); 
                 } else { msg.innerHTML = `รหัสผ่านไม่ถูกต้อง`; msg.style.color = 'red'; }
             } catch(e) { msg.innerText = 'เชื่อมต่อล้มเหลว'; msg.style.color = 'red'; }
         }
 
-        // 🔥 ฟังก์ชันใหม่: บันทึก Session ลง LocalStorage (Multi-User)
         function saveSession(user) {
             currentUser = user;
             localStorage.setItem('kamky_user', JSON.stringify(currentUser));
-            
-            // ดึงรายการเก่ามา
             let sessions = JSON.parse(localStorage.getItem('kamky_saved_sessions') || "[]");
-            // ลบชื่อเดิมออกก่อน (เพื่ออัปเดตข้อมูลล่าสุด)
             sessions = sessions.filter(s => s.username !== user.username);
-            // เพิ่มชื่อใหม่เข้าไป
             sessions.push(user);
             localStorage.setItem('kamky_saved_sessions', JSON.stringify(sessions));
         }
 
-        // 🔥 แก้ไข 2: เปลี่ยน doLogout ให้เป็นแค่การเคลียร์ Active User (แต่รายชื่อยังอยู่)
         function doLogout() { 
             localStorage.removeItem('kamky_user'); 
             location.reload(); 
         }
 
-        // 🔥 ฟังก์ชันใหม่: ลบ User ออกจากรายการจำถาวร
         function removeSavedUser(username) {
             let sessions = JSON.parse(localStorage.getItem('kamky_saved_sessions') || "[]");
             sessions = sessions.filter(s => s.username !== username);
             localStorage.setItem('kamky_saved_sessions', JSON.stringify(sessions));
-            
-            // ถ้าลบตัวที่ใช้อยู่ ให้ Logout ด้วย
-            if (currentUser && currentUser.username === username) {
-                doLogout();
-            } else {
-                openSwitchAccountModal(); // เปิดหน้าต่างสลับบัญชีใหม่เพื่ออัปเดตรายการ
-            }
+            if (currentUser && currentUser.username === username) { doLogout(); } 
+            else { openSwitchAccountModal(); }
         }
 
         function checkPerm(menuCode) {
@@ -267,7 +268,6 @@
 
         function initApp() {
             document.getElementById('loginOverlay').style.display = 'none';
-            // เพิ่มปุ่มสลับบัญชีไว้ข้างชื่อ User
             document.getElementById('appTitle').innerHTML += ` 
                 <span class="user-profile-badge" onclick="userProfile()">
                     <i class="fas fa-user"></i> ${currentUser.name}
@@ -279,7 +279,6 @@
             document.getElementById('btnLogout').style.display = 'flex';
             if(!document.getElementById('filterDate').value) document.getElementById('filterDate').valueAsDate = new Date();
 
-            // ... (Logic การแสดงปุ่มตามสิทธิ์ เหมือนเดิม) ...
             const btnAdmin = document.getElementById('btnAdmin');
             if (btnAdmin) btnAdmin.style.display = checkPerm('manage_users') ? 'flex' : 'none';
             const btnExpense = document.getElementById('btnExpense');
@@ -298,20 +297,16 @@
             loadData();
         }
 
-        // 🔥 ฟังก์ชันใหม่: หน้าต่างสลับบัญชี
         function openSwitchAccountModal() {
             let sessions = JSON.parse(localStorage.getItem('kamky_saved_sessions') || "[]");
             let listHtml = `<div style="text-align:left; max-height:300px; overflow-y:auto;">`;
-            
-            if (sessions.length === 0) {
-                listHtml += `<div style="text-align:center; color:#999; padding:10px;">ไม่มีบัญชีที่บันทึกไว้</div>`;
-            } else {
+            if (sessions.length === 0) { listHtml += `<div style="text-align:center; color:#999; padding:10px;">ไม่มีบัญชีที่บันทึกไว้</div>`; } 
+            else {
                 sessions.forEach(u => {
                     let isActive = (currentUser && currentUser.username === u.username);
                     let bg = isActive ? '#e8f5e9' : '#fff';
                     let border = isActive ? '2px solid #4caf50' : '1px solid #ddd';
                     let icon = isActive ? '<i class="fas fa-check-circle" style="color:#4caf50"></i>' : '<i class="far fa-user-circle"></i>';
-                    
                     listHtml += `
                     <div style="display:flex; justify-content:space-between; align-items:center; background:${bg}; border:${border}; padding:10px; border-radius:8px; margin-bottom:8px;">
                         <div style="display:flex; align-items:center; gap:10px; cursor:pointer; flex-grow:1;" onclick="switchSession('${u.username}')">
@@ -329,69 +324,39 @@
             <button onclick="addNewAccount()" style="width:100%; padding:12px; border:2px dashed #4361ee; background:#f0f4ff; color:#4361ee; border-radius:8px; font-weight:bold; cursor:pointer; margin-top:10px;">
                 <i class="fas fa-plus"></i> เพิ่มบัญชีอื่น
             </button>`;
-
-            Swal.fire({
-                title: 'สลับผู้ใช้งาน',
-                html: listHtml,
-                showConfirmButton: false,
-                showCloseButton: true,
-                width: '400px'
-            });
+            Swal.fire({ title: 'สลับผู้ใช้งาน', html: listHtml, showConfirmButton: false, showCloseButton: true, width: '400px' });
         }
 
-        // 🔥 ฟังก์ชันใหม่: สลับไปใช้ Session ที่เลือก
         function switchSession(username) {
             let sessions = JSON.parse(localStorage.getItem('kamky_saved_sessions') || "[]");
             let targetUser = sessions.find(s => s.username === username);
             if (targetUser) {
                 currentUser = targetUser;
                 localStorage.setItem('kamky_user', JSON.stringify(currentUser));
-                Swal.fire({ icon: 'success', title: `ยินดีต้อนรับ ${targetUser.name}`, timer: 800, showConfirmButton: false }).then(() => {
-                    location.reload();
-                });
+                Swal.fire({ icon: 'success', title: `ยินดีต้อนรับ ${targetUser.name}`, timer: 800, showConfirmButton: false }).then(() => { location.reload(); });
             }
         }
 
-        // 🔥 ฟังก์ชันใหม่: Login เพิ่มบัญชี (ผ่าน SweetAlert)
         async function addNewAccount() {
             const { value: formValues } = await Swal.fire({
                 title: 'เข้าสู่ระบบบัญชีใหม่',
-                html: `
-                    <input id="swal-login-user" class="swal2-input" placeholder="Username">
-                    <input id="swal-login-pass" type="password" class="swal2-input" placeholder="Password">
-                `,
-                focusConfirm: false,
-                showCancelButton: true,
-                confirmButtonText: 'เข้าสู่ระบบ',
-                preConfirm: () => {
-                    return [
-                        document.getElementById('swal-login-user').value,
-                        document.getElementById('swal-login-pass').value
-                    ]
-                }
+                html: `<input id="swal-login-user" class="swal2-input" placeholder="Username"><input id="swal-login-pass" type="password" class="swal2-input" placeholder="Password">`,
+                focusConfirm: false, showCancelButton: true, confirmButtonText: 'เข้าสู่ระบบ',
+                preConfirm: () => { return [ document.getElementById('swal-login-user').value, document.getElementById('swal-login-pass').value ] }
             });
-
             if (formValues) {
                 const [u, p] = formValues;
                 if(!u || !p) return;
-                
                 Swal.showLoading();
                 try {
                     const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({action:'login', username:u, password:p}) });
                     const d = await res.json();
-                    if(d.status === 'success') {
-                        saveSession(d.user); // บันทึกและสลับทันที
-                        Swal.fire({ icon: 'success', title: 'เพิ่มบัญชีเรียบร้อย', timer: 1000 }).then(() => location.reload());
-                    } else {
-                        Swal.fire('Error', 'รหัสผ่านไม่ถูกต้อง', 'error').then(addNewAccount); // ให้ลองใหม่
-                    }
-                } catch(e) {
-                    Swal.fire('Error', 'เชื่อมต่อไม่ได้', 'error');
-                }
+                    if(d.status === 'success') { saveSession(d.user); Swal.fire({ icon: 'success', title: 'เพิ่มบัญชีเรียบร้อย', timer: 1000 }).then(() => location.reload()); } 
+                    else { Swal.fire('Error', 'รหัสผ่านไม่ถูกต้อง', 'error').then(addNewAccount); }
+                } catch(e) { Swal.fire('Error', 'เชื่อมต่อไม่ได้', 'error'); }
             }
         }
 
-        // ... (ฟังก์ชันอื่นๆ: loadData, recordExpense, manageUsers, etc. คงเดิม ไม่ต้องแก้) ...
         async function loadData() {
             if (!currentUser) return; 
             const dateInput = document.getElementById('filterDate');
@@ -441,7 +406,6 @@
             }
         }
 
-        // ... (ฟังก์ชันอื่นๆ manageUsers, addUser, deleteUser, doGlobalSearch, etc. คงเดิม) ...
         async function manageUsers() {
             if (!currentUser || currentUser.role !== 'admin') return Swal.fire('Error', 'Access Denied', 'error');
             Swal.fire({ title: 'กำลังโหลดรายชื่อ...', didOpen: () => Swal.showLoading() });
@@ -502,7 +466,7 @@
         async function doGlobalSearch() {
             const keyword = document.getElementById('searchInput').value.trim();
             if(!keyword) return;
-            isSearchMode = true;
+            isSearchMode = true; // ✅ มีตัวแปรนี้แล้ว ไม่ Error แน่นอน
             document.getElementById('statContainer').style.display = 'none';
             document.getElementById('adminDashboard').style.display = 'none';
             document.getElementById('polygonContainer').style.display = 'none';
@@ -513,7 +477,7 @@
             try {
                 const response = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'search_tracking', keyword: keyword }) });
                 const data = await response.json();
-                if(data.contracts) { filteredData = data.contracts.map(c => { let amt = parseFloat(c.amount || 0) * (c.overdue_count > 1 ? c.overdue_count : 1); return { ...c, finalAmount: amt, hasPostpone: (c.postpone_date && c.postpone_date !== "-") }; }); } else { filteredData = []; }
+                if(data.contracts) { filteredData = data.contracts.map(c => { let amt = parseFloat(c.amount || 0) * (c.overdue_count > 1 ? c.overdue_count : 1); return { ...c, finalAmount: amt, hasPostpone: (c.postpone_date && c.postpone_date !== "-" && c.postpone_date !== "") }; }); } else { filteredData = []; }
                 renderDirectList(data.contracts);
             } catch (e) { container.innerHTML = '<div class="loading-state" style="color:red">ไม่พบข้อมูล หรือ เกิดข้อผิดพลาด</div>'; }
         }
@@ -565,20 +529,33 @@
         function renderDashboard(data, selectedDate, forceShowAll) {
             const container = document.getElementById('contractList'); 
             const polyContainer = document.getElementById('polygonContainer');
+            
+            contractGroups = { pending: [], normal: [], postpone: [], overdue: [] };
+            
             globalSummary = data.summary || {};
-            container.innerHTML = ""; polyContainer.innerHTML = "";
+            container.innerHTML = ""; 
+            polyContainer.innerHTML = "";
             document.getElementById('contractListHeading').style.display = 'none';
             filteredData = [];
+            
             const hidden = JSON.parse(localStorage.getItem('hiddenContracts') || '[]').map(String);
             const selectedDateThai = selectedDate ? formatDateToThai(selectedDate) : "";
+            
             let selectedYearTH = ""; let selectedMonthOnly = "";
-            if(selectedDate) { let d = new Date(selectedDate); selectedYearTH = d.getFullYear() + 543; selectedMonthOnly = ("0" + (d.getMonth() + 1)).slice(-2); }
+            if(selectedDate) { 
+                let d = new Date(selectedDate); 
+                selectedYearTH = d.getFullYear() + 543; 
+                selectedMonthOnly = ("0" + (d.getMonth() + 1)).slice(-2); 
+            }
             const selectedMonthStr = `${selectedYearTH}-${selectedMonthOnly}`; 
-            contractGroups = { pending: [], normal: [], postpone: [], overdue: [] };
-            let strictDailyCollected = 0; let strictMonthlyCollected = 0;
+            
+            let strictDailyCollected = 0; 
+            let strictMonthlyCollected = 0;
+            
             const dashboard = document.getElementById('adminDashboard');
             const boxCost = document.getElementById('boxCost');     
             const cardDaily = document.getElementById('cardDaily'); 
+            
             dashboard.style.display = 'grid'; 
             if (currentUser && currentUser.role === 'admin') {
                 boxCost.style.display = 'block';
@@ -589,6 +566,7 @@
                 dashboard.style.gridTemplateColumns = '1fr';
                 if(cardDaily) cardDaily.style.display = 'none';
             }
+            
             if (data.contracts) {
                 data.contracts.forEach(c => {
                     const amount = parseFloat(c.amount || 0);
@@ -596,41 +574,80 @@
                     const isPostponedToToday = (c.postpone_date === selectedDateThai);
                     const isDueToday = (c.due_date === selectedDateThai);
                     const hasPostpone = (c.postpone_date && c.postpone_date !== "-" && c.postpone_date !== "");
-                    const isPendingStatus = ['Pending_Approve', 'รอตรวจสอบ', 'รอปิดยอด'].includes(c.status);
+                    
+                    const isPendingStatus = ['Pending_Approve', 'รอตรวจสอบ', 'รอปิดยอด', 'Wait_Owner_Approve', 'Wait_Owner_Close'].includes(c.status);
+                    
                     let isTargetToday = (isPostponedToToday) || (isDueToday && !hasPostpone);
+                    
                     if (isTargetToday && isPaid) strictDailyCollected += amount;
-                    if (c.due_date) { const parts = c.due_date.split('/'); if(parts.length === 3) { const cMonthStr = `${parts[2]}-${parts[1]}`; if (cMonthStr === selectedMonthStr && isPaid) strictMonthlyCollected += amount; } }
+                    if (c.due_date) { 
+                        const parts = c.due_date.split('/'); 
+                        if(parts.length === 3) { 
+                            const cMonthStr = `${parts[2]}-${parts[1]}`; 
+                            if (cMonthStr === selectedMonthStr && isPaid) strictMonthlyCollected += amount; 
+                        } 
+                    }
+                    
                     if (hidden.includes(String(c.c_no))) return;
-                    if (isPaid) return; 
+                    if (c.status === 'Paid' || c.status === 'Close') return; 
+
                     let amt = parseFloat(c.amount) * (c.overdue_count > 1 ? c.overdue_count : 1);
-                    if (c.original_due_date !== selectedDateThai && c.postpone_date === selectedDateThai) { c.worksheetStatus = `เลื่อนมาจาก ${c.original_due_date}`; } else { if (isPendingStatus) { c.worksheetStatus = c.status === 'รอปิดยอด' ? 'รอปิดยอด' : 'รอตรวจสอบ'; } else { c.worksheetStatus = c.overdue_count > 0 ? 'ค้างชำระ' : 'ปกติ'; } }
+                    if (c.original_due_date !== selectedDateThai && c.postpone_date === selectedDateThai) { 
+                        c.worksheetStatus = `เลื่อนมาจาก ${c.original_due_date}`; 
+                    } else { 
+                        if (isPendingStatus) { c.worksheetStatus = c.status === 'รอปิดยอด' ? 'รอปิดยอด' : 'รอตรวจสอบ'; } 
+                        else { c.worksheetStatus = c.overdue_count > 0 ? 'ค้างชำระ' : 'ปกติ'; } 
+                    }
+                    
                     let item = { ...c, finalAmount: amt, hasPostpone: hasPostpone };
                     filteredData.push(item);
-                    if (isPendingStatus) { if (currentUser.role === 'admin' || !isPendingStatus) contractGroups.pending.push(item); } 
+                    
+                    if (isPendingStatus) { 
+                        contractGroups.pending.push(item); 
+                    } 
                     else if (isPostponedToToday) { contractGroups.postpone.push(item); }
                     else if (c.overdue_count > 0) { contractGroups.overdue.push(item); } 
                     else if (isTargetToday) { contractGroups.normal.push(item); }
                 });
             }
+            
             updateCharts(0, strictDailyCollected, 0, strictMonthlyCollected);
-            if (data.summary && data.summary.commission !== undefined) { const commEl = document.getElementById('txtCommission'); if(commEl) commEl.innerText = (data.summary.commission || 0).toLocaleString(); }
-            if (contractGroups.pending.length > 0 && currentUser.role === 'admin') { polyContainer.innerHTML += createPolygonHtml('pending', 'รอตรวจสอบ', contractGroups.pending.length, 'poly-bg-pending', 'fas fa-clock'); }
+            
+            if (data.summary && data.summary.commission !== undefined) { 
+                const commEl = document.getElementById('txtCommission'); 
+                if(commEl) commEl.innerText = (data.summary.commission || 0).toLocaleString(); 
+            }
+            
+            if (contractGroups.pending.length > 0) { 
+                polyContainer.innerHTML += createPolygonHtml('pending', 'รอตรวจสอบ/อนุมัติ', contractGroups.pending.length, 'poly-bg-pending', 'fas fa-clock'); 
+            }
             polyContainer.innerHTML += createPolygonHtml('normal', 'ปกติ (วันนี้)', contractGroups.normal.length, 'poly-bg-normal', 'fas fa-calendar-check');
             polyContainer.innerHTML += createPolygonHtml('postpone', 'เลื่อนนัดมาวันนี้', contractGroups.postpone.length, 'poly-bg-postpone', 'fas fa-history');
             polyContainer.innerHTML += createPolygonHtml('overdue', 'เกินกำหนด', contractGroups.overdue.length, 'poly-bg-overdue', 'fas fa-exclamation-circle');
+            
             container.innerHTML = `<div class="loading-state" style="padding:20px;">👈 คลิกที่กล่องสถานะด้านบนเพื่อดูรายการ</div>`;
         }
 
-        function createPolygonHtml(groupKey, title, count, bgClass, iconClass) { return `<div class="polygon-card ${bgClass}" onclick="showGroupList('${groupKey}', '${title}')"><i class="${iconClass} poly-icon"></i><div class="poly-count">${count}</div><div class="poly-title">${title}</div></div>`; }
+        function createPolygonHtml(groupKey, title, count, bgClass, iconClass) { 
+            return `<div class="polygon-card ${bgClass}" onclick="showGroupList('${groupKey}', '${title}')"><i class="${iconClass} poly-icon"></i><div class="poly-count">${count}</div><div class="poly-title">${title}</div></div>`; 
+        }
+
         function showGroupList(groupKey, title) {
             const list = contractGroups[groupKey];
             const container = document.getElementById('contractList');
             const heading = document.getElementById('contractListHeading');
+            
+            if (!list || list.length === 0) {
+                container.innerHTML = '<div class="loading-state">ไม่พบรายการ</div>';
+                return;
+            }
+            
             heading.style.display = 'block';
             heading.innerText = `▼ รายการ: ${title} (${list.length})`;
             renderDirectList(list);
             setTimeout(() => { heading.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
         }
+
         function renderDirectList(items) {
             const container = document.getElementById('contractList');
             if (!items || items.length === 0) { container.innerHTML = '<div class="loading-state">ไม่พบรายการ</div>'; return; }
@@ -640,25 +657,49 @@
         function createCardHtml(c) {
             if (c.finalAmount === undefined) { c.finalAmount = parseFloat(c.amount || 0) * (c.overdue_count > 1 ? c.overdue_count : 1); }
             if (c.hasPostpone === undefined) { c.hasPostpone = (c.postpone_date && c.postpone_date !== "-" && c.postpone_date !== ""); }
+            
             const isAdmin = currentUser.role === 'admin'; 
+            const isCentral = currentUser.sale_code === 'Central';
+
             let cardClass = isSearchMode ? "card-search-result" : "card-normal"; 
             let statusHtml = `<span class="status-text text-green"><i class="fas fa-check-circle"></i> ปกติ</span>`;
             let hasPaymentNote = c.last_note && c.last_note.includes('แจ้งชำระ');
-            const isClosed = (c.status === 'Paid' || c.status === 'Close');
+            const isClosed = (c.status === 'Paid' || c.status === 'Close' || c.status === 'BadDebt');
+
+            // ✅ ใช้ escapeHtml เพื่อป้องกัน Quote หลุด
+            let safeName = escapeHtml(c.b_name);
+            let safeNote = escapeHtml(c.last_note || "");
+
             if (c.status === 'Pending_Approve' || c.status === 'รอตรวจสอบ') { 
                 cardClass = "card-pending-approve"; 
-                if(isAdmin) statusHtml = `<span class="status-text text-orange" onclick="adminApprove('${c.c_no}', ${c.row_index}, '${c.request_date}', '${c.last_note || ''}', 'postpone')">⏳ รอตรวจสอบ (กด)</span>`; 
-                else statusHtml = `<span class="status-text text-orange">⏳ รอตรวจสอบ</span>`; 
-            } 
-            else if (c.status === 'รอปิดยอด') { 
+                if(isAdmin) statusHtml = `<span class="status-text text-orange" style="cursor:pointer;" onclick="adminCheck('${c.c_no}', ${c.row_index}, '${c.request_date}', '${safeNote}', 'postpone')">🔍 รอ Admin ตรวจสอบ (คลิก)</span>`; 
+                else statusHtml = `<span class="status-text text-orange">⏳ รอ Admin ตรวจสอบ</span>`; 
+
+            } else if (c.status === 'Wait_Owner_Approve') {
                 cardClass = "card-pending-approve"; 
-                if(isAdmin) statusHtml = `<span class="status-text text-red" style="cursor:pointer;" onclick="adminApprove('${c.c_no}', ${c.row_index}, '-', '${c.last_note || ''}', 'close')">🏁 รอปิดยอด (กดอนุมัติ)</span>`; 
-                else statusHtml = `<span class="status-text text-red">🏁 รออนุมัติปิดยอด</span>`; 
+                if(isCentral) statusHtml = `<span class="status-text text-purple" style="cursor:pointer;" onclick="ownerApprove('${c.c_no}', ${c.row_index}, '${c.request_date}', '${safeNote}', 'final')">👑 รอ Owner อนุมัติ (คลิก)</span>`;
+                else statusHtml = `<span class="status-text text-purple">👑 รอเจ้าของอนุมัติ</span>`;
+
+            } else if (c.status === 'รอปิดยอด') { 
+                cardClass = "card-pending-approve"; 
+                if(isAdmin) statusHtml = `<span class="status-text text-red" style="cursor:pointer;" onclick="adminCheck('${c.c_no}', ${c.row_index}, '-', '${safeNote}', 'close')">🔍 รอปิดยอด (Admin ตรวจสอบ)</span>`; 
+                else statusHtml = `<span class="status-text text-red">⏳ รอตรวจสอบปิดยอด</span>`; 
+
+            } else if (c.status === 'Wait_Owner_Close') {
+                cardClass = "card-pending-approve"; 
+                if(isCentral) statusHtml = `<span class="status-text text-red" style="cursor:pointer; font-weight:bold;" onclick="ownerApprove('${c.c_no}', ${c.row_index}, '-', '${safeNote}', 'close_final')">🏁 ยืนยันปิดยอด (Owner)</span>`;
+                else statusHtml = `<span class="status-text text-red">👑 รอเจ้าของปิดยอด</span>`;
             }
+
             else if (c.hasPostpone) { cardClass = "card-postpone"; statusHtml = `<span class="status-text text-purple">⏰ เลื่อน: ${c.postpone_date}</span>`; } 
             else if (c.overdue_count > 0) { cardClass = "card-overdue"; statusHtml = `<span class="status-text text-red">❗ ค้าง ${c.overdue_count} งวด</span>`; }
-            else if (isClosed) { statusHtml = `<span class="status-text text-green">✅ ปิดบัญชีแล้ว (${c.last_payment_date})</span>`; }
+            else if (isClosed) { 
+                if(c.status === 'BadDebt') statusHtml = `<span class="status-text text-red" style="font-weight:bold;">☠️ หนี้เสีย (Bad Debt)</span>`;
+                else statusHtml = `<span class="status-text text-green">✅ ปิดบัญชีแล้ว (${c.last_payment_date})</span>`; 
+            }
+
             if (hasPaymentNote) { let noteContent = linkify(c.last_note); statusHtml += `<div style="font-size:11px; color:#4361ee; background:#eef2ff; padding:6px; border-radius:4px; margin-top:4px; border:1px solid #dce6ff; white-space:normal; word-break:break-all;">💰 ${noteContent}</div>`; }
+            
             let financialHtml = '';
             let profitClass = c.current_profit >= 0 ? 'color:#27ae60;' : 'color:#c0392b;';
             let profitIcon = c.current_profit >= 0 ? '📈 กำไร' : '📉 ยังไม่คืนทุน';
@@ -679,21 +720,23 @@
                         <span>ROI: ${c.roi_percent || 0}%</span>
                     </div>
                 </div>`;
-            let menuButton = isAdmin ? `<button class="btn-kebab" style="margin-left:5px;" onclick="openManageMenu(${c.row_index},'${c.b_name}','${c.c_no}')">⋮</button>` : '';
+
+            let menuButton = isAdmin || isCentral ? `<button class="btn-kebab" style="margin-left:5px;" onclick="openManageMenu(${c.row_index},'${safeName}','${c.c_no}')">⋮</button>` : '';
             let actionButtonsHtml = '', gridClass = '';
             const hasExtraInfo = (c.contact_image && c.contact_image !== "" && c.contact_image !== "-");
-            const infoBtn = hasExtraInfo ? `<button class="btn-act btn-act-info" onclick="openContactImage('${c.c_no}')"><i class="fas fa-address-card"></i> ข้อมูลเพิ่มเติม</button>` : `<button class="btn-act btn-disabled" disabled><i class="fas fa-address-card"></i> ข้อมูลเพิ่มเติม</button>`;
+            const infoBtn = hasExtraInfo ? `<button class="btn-act btn-act-info" onclick="openContactImage('${c.c_no}')"><i class="fas fa-address-card"></i> ข้อมูล</button>` : `<button class="btn-act btn-disabled" disabled><i class="fas fa-address-card"></i> ข้อมูล</button>`;
             const contractBtn = `<button class="btn-act btn-act-contract" onclick="openContractPopup('${c.c_no}')"><i class="fas fa-file-contract"></i> สัญญา</button>`;
+
             if (isClosed) {
                 gridClass = 'grid-closed-actions';
                 actionButtonsHtml = `${infoBtn}${contractBtn}`;
             } else {
-                if (isAdmin) {
+                if (isAdmin || isCentral) {
                     gridClass = 'grid-admin-actions';
-                    actionButtonsHtml = `<a href="tel:${c.b_mobile}" class="btn-act btn-act-call"><i class="fas fa-phone"></i> โทร</a>${infoBtn}${contractBtn}<button class="btn-act btn-act-pay" onclick="openPay('${c.c_no}')"><i class="fas fa-wallet"></i> จ่าย</button><button class="btn-act btn-act-postpone" style="grid-column: 1 / -1;" onclick="openPostpone(${c.row_index},'${c.b_name}', '${c.postpone_date||''}')"><i class="fas fa-calendar-check"></i> นัดหมาย</button>`;
+                    actionButtonsHtml = `<a href="tel:${c.b_mobile}" class="btn-act btn-act-call"><i class="fas fa-phone"></i> โทร</a>${infoBtn}${contractBtn}<button class="btn-act btn-act-pay" onclick="openPay('${c.c_no}')"><i class="fas fa-wallet"></i> จ่าย</button><button class="btn-act btn-act-postpone" style="grid-column: 1 / -1;" onclick="openPostpone(${c.row_index},'${safeName}', '${c.postpone_date||''}')"><i class="fas fa-calendar-check"></i> นัดหมาย</button>`;
                 } else {
                     gridClass = 'grid-user-actions';
-                    const isPending = (c.status === 'Pending_Approve' || c.status === 'รอตรวจสอบ' || c.status === 'รอปิดยอด');
+                    const isPending = (c.status === 'Pending_Approve' || c.status === 'รอตรวจสอบ' || c.status === 'รอปิดยอด' || c.status === 'Wait_Owner_Approve' || c.status === 'Wait_Owner_Close');
                     const payBtn = isPending ? `<button class="user-checkbox-btn btn-disabled" disabled><i class="fas fa-clock"></i> รออนุมัติ</button>` : `<button class="user-checkbox-btn" onclick="userReqPay('${c.c_no}')"><i class="far fa-check-square"></i> แจ้งชำระ</button>`;
                     const closeBtn = isPending ? `<button class="user-checkbox-btn btn-disabled" disabled><i class="fas fa-flag-checkered"></i> ปิดยอด</button>` : `<button class="user-checkbox-btn" onclick="userReqClose('${c.c_no}')" style="color:#c0392b;"><i class="fas fa-flag-checkered"></i> ขอปิดยอด</button>`;
                     const followBtn = isPending ? `<button class="user-checkbox-btn btn-disabled" disabled><i class="fas fa-bullhorn"></i> ติดตาม</button>` : `<button class="user-checkbox-btn" onclick="userReqFollow('${c.c_no}')" style="color:#d35400;"><i class="fas fa-bullhorn"></i> ติดตาม</button>`;
@@ -723,20 +766,57 @@
         async function userAddNote(cNo) { Swal.fire({input:'text', title:'บันทึก'}).then(r=>{if(r.value) sendUserRequest('add_daily_note', cNo, {note:r.value});}); }
         async function sendUserRequest(act, cNo, pl) { Swal.showLoading(); try { await fetch(API_URL, { method:'POST', body:JSON.stringify({ action:'user_action_log', sub_action:act, c_no:cNo, user:currentUser.username, ...pl }) }); Swal.fire({icon:'success', title:'บันทึกสำเร็จ', timer:1500, showConfirmButton:false}); loadData(); } catch(e) { Swal.fire('Error', 'ส่งข้อมูลล้มเหลว', 'error'); } }
 
-        async function adminApprove(cNo, rowIndex, reqDate, details, type) {
-            let title = type === 'close' ? 'อนุมัติปิดยอดบัญชี (Close)' : 'อนุมัติรายการ';
-            let confirmBtn = type === 'close' ? '🏁 ยืนยันปิดยอด' : '✅ ยืนยันอนุมัติ';
-            let actionType = type === 'close' ? 'close_account' : 'approve_contract'; 
-            Swal.fire({ title: title, html: `<p>สัญญา #${cNo}</p><h2 style="color:#4361ee;">${reqDate !== '-' ? reqDate : ''}</h2><p>${details}</p>`, icon: 'question', showCancelButton: true, showDenyButton: true, denyButtonText: '❌ ตีกลับ (ให้แก้ไข)', confirmButtonText: confirmBtn, cancelButtonText: 'ยกเลิก' 
+        async function adminCheck(cNo, rowIndex, reqDate, details, type) {
+            let title = type === 'close' ? 'ตรวจสอบปิดยอด (ส่งต่อ Owner)' : 'ตรวจสอบรายการ (ส่งต่อ Owner)';
+            Swal.fire({ 
+                title: title, 
+                html: `<p>สัญญา #${cNo}</p><p>${details}</p>`, 
+                icon: 'info', 
+                showCancelButton: true, 
+                showDenyButton: true, 
+                denyButtonText: '❌ ตีกลับ (ให้เซลล์แก้)', 
+                confirmButtonText: '✅ ผ่าน (ส่งให้ Owner)', 
+                cancelButtonText: 'ยกเลิก' 
             }).then(async (result) => { 
                 if (result.isConfirmed) { 
                     Swal.showLoading(); 
-                    if (type === 'postpone' && reqDate && reqDate !== '-') { await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'postpone', row_index: rowIndex, new_date: reqDate }) }); } 
-                    await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: actionType, row_index: rowIndex }) }); 
-                    Swal.fire({ title: '✅ อนุมัติสำเร็จ!', text: "ต้องการออกใบเสร็จรับเงินเดี๋ยวนี้เลยหรือไม่?", icon: 'success', showCancelButton: true, confirmButtonText: '🖨️ ไปหน้าออกใบเสร็จ', cancelButtonText: 'ปิด', confirmButtonColor: '#2c3e50' }).then((r) => { if (r.isConfirmed) { window.open(`https://kamkywork.github.io/kamkybill-app/?ref=${encodeURIComponent(cNo)}`, '_blank'); } loadData(); });
+                    await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'admin_pass_to_owner', row_index: rowIndex, type: type }) }); 
+                    Swal.fire('ส่งต่อให้ Owner แล้ว', '', 'success').then(() => loadData());
                 } else if (result.isDenied) {
-                    const { value: reason } = await Swal.fire({ title: 'ระบุเหตุผลที่ตีกลับ', input: 'text', inputPlaceholder: 'เช่น สลิปไม่ชัด, ยอดไม่ตรง', showCancelButton: true });
-                    if (reason) { Swal.showLoading(); await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'reject_request', row_index: rowIndex, reason: reason }) }); Swal.fire('บันทึกการตีกลับแล้ว', '', 'success').then(() => loadData()); }
+                    const { value: reason } = await Swal.fire({ title: 'ระบุเหตุผลที่ตีกลับ', input: 'text', showCancelButton: true });
+                    if (reason) { 
+                        Swal.showLoading(); 
+                        await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'reject_request', row_index: rowIndex, reason: reason }) }); 
+                        Swal.fire('บันทึกการตีกลับแล้ว', '', 'success').then(() => loadData()); 
+                    }
+                }
+            });
+        }
+
+        async function ownerApprove(cNo, rowIndex, reqDate, details, type) {
+            let title = type === 'close_final' ? 'อนุมัติปิดยอด (Final)' : 'อนุมัติรายการ (Final)';
+            Swal.fire({ 
+                title: title, 
+                html: `<p>สัญญา #${cNo}</p><p>${details}</p>`, 
+                icon: 'warning', 
+                showCancelButton: true, 
+                showDenyButton: true, 
+                denyButtonText: '❌ ตีกลับ', 
+                confirmButtonText: '👑 อนุมัติทันที', 
+                cancelButtonText: 'ยกเลิก' 
+            }).then(async (result) => { 
+                if (result.isConfirmed) { 
+                    Swal.showLoading(); 
+                    let actionType = type === 'close_final' ? 'close_account' : 'approve_contract';
+                    await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: actionType, row_index: rowIndex }) }); 
+                    Swal.fire('อนุมัติเรียบร้อย!', '', 'success').then(() => loadData());
+                } else if (result.isDenied) {
+                    const { value: reason } = await Swal.fire({ title: 'ระบุเหตุผลที่ตีกลับ', input: 'text', showCancelButton: true });
+                    if (reason) { 
+                        Swal.showLoading(); 
+                        await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'reject_request', row_index: rowIndex, reason: reason }) }); 
+                        Swal.fire('บันทึกการตีกลับแล้ว', '', 'success').then(() => loadData()); 
+                    }
                 }
             });
         }
