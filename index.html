@@ -3,959 +3,831 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ระบบออกใบเสร็จรับเงิน (Verify Name Separate)</title>
-    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&family=Courier+Prime:wght@400&display=swap" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    
+    <title>ระบบติดตามยอด - Collection System (V.Final Complete)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
-        /* --- CSS หลัก --- */
-        :root { --paper-width: 210mm; --paper-height: 297mm; }
-        body { font-family: 'Sarabun', sans-serif; background-color: #f0f2f5; margin: 0; display: flex; height: 100vh; overflow: hidden; }
-        .editor-panel { width: 35%; background: #ffffff; padding: 20px; padding-bottom: 50px; overflow-y: auto; box-shadow: 2px 0 5px rgba(0,0,0,0.1); z-index: 10; display: flex; flex-direction: column; }
-        .preview-panel { width: 65%; background: #525659; display: flex; justify-content: center; align-items: flex-start; padding: 20px; overflow: auto; }
-        
-        @media screen and (max-width: 1024px) {
-            body { flex-direction: column; height: auto; overflow-y: auto; }
-            .editor-panel { width: 100%; height: auto; order: 1; padding-bottom: 20px; box-sizing: border-box; }
-            .preview-panel { width: 100%; height: auto; order: 2; padding: 10px; background: #e9ecef; overflow-x: hidden; }
-            .paper { transform: scale(0.45); transform-origin: top center; margin-bottom: -140mm; } 
+        /* CSS Style V.75 - Fixed User Management */
+        :root { 
+            --primary: #4361ee;   --secondary: #3f37c9; --success: #0abde3;   
+            --warning: #8e44ad;   --danger: #e71d36;    --dark: #2b2d42;      
+            --light: #f8f9fa; --gray: #8d99ae; --bg: #edf2f4; --card-radius: 16px; 
         }
-
-        .editor-panel h2 { color: #333; border-bottom: 2px solid #007bff; padding-bottom: 10px; margin-top: 0; font-size: 1.2rem; }
-        .form-group { margin-bottom: 15px; }
-        .form-group label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; font-size: 0.9rem; }
-        .form-group input, .form-group select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: 'Sarabun', sans-serif; box-sizing: border-box; }
-        .form-group input:focus { border-color: #007bff; outline: none; }
-        .readonly-field { background-color: #e9ecef; color: #495057; cursor: not-allowed; }
-
-        .slip-preview-container { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
-        .slip-check-wrapper { width: 48%; margin-bottom: 10px; border: 1px solid #ddd; padding: 5px; border-radius: 5px; background: #fafafa; }
-        .slip-preview-item { width: 100%; object-fit: contain; display: block; }
-        .slip-status { font-size: 0.8rem; margin-top: 5px; font-weight: bold; text-align: center; }
-        .status-checking { color: #e67e22; }
-        .status-pass { color: #28a745; }
-        .status-fail { color: #dc3545; }
-
-        .bottom-action-wrapper { margin-top: 20px; padding: 15px; background: #f1f3f5; border-radius: 8px; border: 1px solid #e9ecef; }
-        .action-popup { display: none; margin-bottom: 10px; }
-        .btn-action { width: 100%; border: none; padding: 12px; font-size: 1em; cursor: pointer; border-radius: 5px; color: white; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px; font-family: 'Sarabun', sans-serif; }
-        .btn-main { background-color: #2c3e50; font-weight: bold; }
-        .btn-sub-print { background-color: #28a745; }
-        .btn-sub-save { background-color: #ffc107; color: #333; }
-        .btn-sub-cloud { background-color: #4285F4; }
-        .btn-refresh, .btn-delete { border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; color: white; font-size: 0.8rem; margin-top: 5px;}
-        .btn-refresh { background-color: #17a2b8; }
-        .btn-delete { background-color: #dc3545; }
-
-        .edit-search-box { background-color: #fff3cd; border: 1px solid #ffeeba; padding: 10px; border-radius: 8px; margin-bottom: 15px; }
-        .mode-badge { display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 0.8em; font-weight: bold; margin-bottom: 5px; }
-        .mode-new { background: #d4edda; color: #155724; }
-        .mode-edit { background: #f8d7da; color: #721c24; }
-        .old-slip-wrapper { margin-top:10px; padding:5px; border:1px dashed #999; border-radius:5px; background:#fff; }
-        .contract-import-box { background-color: #e8f5e9; border: 1px solid #a5d6a7; padding: 10px; border-radius: 8px; margin-bottom: 15px; }
-        .search-row { display: flex; gap: 5px; align-items: flex-end; }
-        .btn-search { background-color: #ff9800; border: none; padding: 8px 12px; color: white; border-radius: 4px; cursor: pointer; height: 35px; white-space:nowrap; }
-        .btn-import { background-color: #2ecc71; border: none; padding: 8px 12px; color: white; border-radius: 4px; cursor: pointer; height: 35px; font-weight: bold; white-space:nowrap; }
-
-        .paper { width: var(--paper-width); min-height: var(--paper-height); background: white; padding: 15mm; box-shadow: 0 0 15px rgba(0,0,0,0.5); position: relative; box-sizing: border-box; font-size: 14pt; display: flex; flex-direction: column; line-height: 1.5; transition: all 0.3s; }
-        .header { position: relative; height: 50px; margin-bottom: 35px; }
-        .header-title { font-size: 24pt; font-weight: bold; position: absolute; left: 0; width: 100%; text-align: center; top: 5px; z-index: 1; }
-        .header-meta { text-align: right; line-height: 1.5; position: absolute; right: 0; top: 0; z-index: 2; background: rgba(255,255,255,0.8); }
-        #out-contract-no, #out-book, #out-no { color: red; font-weight: bold; }
-        .security-ref { font-family: 'Courier Prime', monospace; font-size: 9pt; color: #666; text-align: right; margin-bottom: 10px; letter-spacing: 1px; }
-        .row { display: flex; margin-bottom: 12px; align-items: flex-end; min-height: 30px; flex-wrap: nowrap; }
-        .fixed-width-row { width: 70%; }
-        .label { white-space: nowrap; margin-right: 5px; flex-shrink: 0; padding-bottom: 2px; }
-        .fill-line { border-bottom: 1px solid #000; flex-grow: 1; min-width: 0; text-align: center; padding: 0 5px; white-space: nowrap; overflow: visible; font-weight: bold; color: #000; }
-        .checkbox-group { display: flex; align-items: center; margin-right: 15px; flex-shrink: 0; }
-        .box { width: 15px; height: 15px; border: 1px solid black; display: inline-block; margin-right: 5px; text-align: center; line-height: 12px; font-size: 12px; }
         
-        .signature-section { margin-top: 15px; display: flex; justify-content: space-between; align-items: flex-end; height: 300px; transition: all 0.3s; }
-        .slip-on-paper-container { width: 55%; height: 100%; display: none; flex-direction: column; align-items: center; border: 1px solid #333; padding: 5px; border-radius: 4px; box-sizing: border-box; overflow: hidden; }
-        .slip-paper-gallery { width: 100%; height: 100%; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 2px; overflow: hidden; justify-content: center; }
-        .slip-paper-img { max-width: 100%; max-height: 260px; object-fit: contain; margin-top: 5px; }
-        .slip-paper-img.multi { width: 48%; max-height: 120px; object-fit: cover; border: 1px solid #eee; }
-
-        .signature-box { text-align: center; width: 35%; position: relative; margin-left: auto; }
-        .uploaded-sig { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); max-width: 150px; max-height: 80px; mix-blend-mode: multiply; display: none; z-index: 5; }
-        .footer-wrapper { margin-top: auto; padding-top: 10px; display: flex; justify-content: space-between; align-items: flex-end; }
-        .footer-text { width: 100%; font-size: 12pt; line-height: 1.6; color: #333; }
-        .warning-box { margin-top: 20px; margin-bottom: 15px; font-weight: bold; color: red; border: 3px solid red; padding: 10px; justify-content: center; border-radius: 8px; }
-
-        .paper.compact-mode { min-height: auto !important; height: auto !important; padding-bottom: 20px !important; }
-        .paper.compact-mode .warning-box { margin-bottom: 40px !important; }
-        .paper.compact-mode .signature-section { margin-top: 0 !important; height: 130px !important; }
-        .paper.compact-mode .footer-wrapper { margin-top: 20px !important; padding-top: 0 !important; }
+        body { font-family: 'Sarabun', sans-serif; background: var(--bg); margin: 0; padding: 0; color: var(--dark); -webkit-font-smoothing: antialiased; }
+        .header { background: #ffffff; padding: 15px 20px; position: sticky; top: 0; z-index: 100; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-bottom-left-radius: 20px; border-bottom-right-radius: 20px; }
+        .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .header h2 { margin: 0; font-size: 20px; font-weight: 700; color: #4361ee; display: flex; align-items: center; gap: 8px; }
+        .tools-bar { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 5px; scrollbar-width: none; align-items: center; flex-wrap: wrap; }
+        .date-input, .search-input { border: 1px solid #e0e0e0; background: #f9f9f9; padding: 8px 12px; border-radius: 10px; font-family: 'Sarabun'; }
+        .date-input { min-width: 130px; }
+        .search-box-group { display: flex; align-items: center; background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 10px; padding-right: 5px; }
+        .search-input { width: 120px; border: none; background: transparent; transition: width 0.3s; }
+        .search-input:focus { width: 160px; outline: none; }
+        .btn-search-icon { color: var(--primary); cursor: pointer; padding: 5px; }
         
-        @page { size: A4 portrait; margin: 0; }
-        @media print {
-            body { background: white; height: auto; display: block; overflow: visible; }
-            .editor-panel { display: none; }
-            .preview-panel { width: 100%; padding: 0; display: block; background: white; }
-            .paper { box-shadow: none; margin: 0; width: 100%; padding: 0; min-height: 100%; page-break-after: always; transform: none !important; }
-            .slip-on-paper-container { border: 1px solid #000 !important; -webkit-print-color-adjust: exact; } 
+        .btn-icon, .btn-pill { border: none; border-radius: 10px; cursor: pointer; transition: 0.2s; color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .btn-icon { width: 38px; height: 38px; flex-shrink: 0; }
+        .btn-pill { padding: 8px 15px; font-size: 13px; font-weight: 600; gap: 5px; border-radius: 20px; white-space: nowrap; }
+        
+        .btn-refresh { background: var(--warning); }
+        .btn-print { background: #341f97; }
+        .btn-excel { background: #00d2d3; }
+        .btn-reset { background: var(--gray); }
+        .btn-daily { background: linear-gradient(135deg, #ff6b6b, #ee5253); }
+        .btn-monthly { background: linear-gradient(135deg, #54a0ff, #5f27cd); }
+        .btn-closed { background: #0abde3; }
+        .btn-expense { background: linear-gradient(135deg, #f39c12, #d35400); }
+        .btn-logout { background: #e74c3c; width: auto; padding: 0 12px; font-size: 12px; height: 38px; }
+        
+        .perf-container { padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .stat-card { background: white; border-radius: var(--card-radius); padding: 25px 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); position: relative; overflow: hidden; }
+        .stat-header { display: flex; align-items: center; margin-bottom: 10px; font-weight: 600; color: var(--gray); gap: 10px; }
+        .stat-header i { font-size: 1.5rem; }
+        .stat-body { text-align: center; padding: 10px 0; }
+        .big-number { font-size: 42px; font-weight: 800; margin: 0; line-height: 1; letter-spacing: -1px; }
+        .unit-text { font-size: 14px; color: var(--gray); font-weight: normal; margin-top: 5px; display: block; }
+
+        .list-container { padding: 0 20px 80px 20px; max-width: 800px; margin: 0 auto; }
+        .polygon-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 20px; margin-top: 10px; }
+        .polygon-card { 
+            padding: 20px; border-radius: 16px; color: white; cursor: pointer; transition: all 0.2s; 
+            text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.1); display: flex;
+            flex-direction: column; justify-content: center; align-items: center; min-height: 100px;
+            position: relative; overflow: hidden;
         }
+        .polygon-card:active { transform: scale(0.95); }
+        .poly-bg-pending { background: linear-gradient(135deg, #0abde3, #48dbfb); }
+        .poly-bg-normal { background: linear-gradient(135deg, #3f37c9, #4361ee); }
+        .poly-bg-postpone { background: linear-gradient(135deg, #8e44ad, #9b59b6); }
+        .poly-bg-overdue { background: linear-gradient(135deg, #c0392b, #e74c3c); }
+        .poly-count { font-size: 36px; font-weight: 800; line-height: 1; margin-bottom: 5px; }
+        .poly-title { font-size: 14px; font-weight: 600; }
+        .poly-icon { font-size: 24px; margin-bottom: 5px; opacity: 0.8; }
+
+        .cust-card { border-radius: var(--card-radius); margin-bottom: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); position: relative; background: white; border-left: 5px solid #ddd; transition: 0.2s; animation: slideDown 0.3s ease-out; }
+        .card-postpone { background: #fbf5ff; border-left-color: #9b59b6; } 
+        .card-overdue { background: #fff0f0; border-left-color: #e74c3c; } 
+        .card-pending-approve { background: #fffdf5; border-left-color: #48dbfb; }
+        .card-search-result { border-left-color: #4361ee; background: #f0f4ff; }
+        
+        .cust-header { padding: 15px 15px 5px 15px; display: flex; justify-content: space-between; align-items: flex-start; }
+        .cust-info h3 { margin: 0 0 4px 0; font-size: 17px; color: var(--dark); }
+        .cust-id { font-size: 11px; color: var(--gray); background: rgba(0,0,0,0.03); padding: 3px 8px; border-radius: 6px; display: inline-block; border: 1px solid rgba(0,0,0,0.05); }
+        
+        .status-text { font-size: 12px; font-weight: bold; display: flex; align-items: center; gap: 5px; }
+        .text-green { color: #0abde3; } .text-orange { color: #8e44ad; cursor: pointer; text-decoration: underline; }
+        .text-purple { color: #8e44ad; } .text-red { color: #c0392b; }
+        
+        .btn-kebab { border: none; background: transparent; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--gray); }
+        .cust-body { padding: 0 15px 15px 15px 15px; display: flex; justify-content: space-between; align-items: flex-end; }
+        .contact-line { font-size: 13px; color: #555; display: flex; align-items: center; gap: 6px; margin-top: 5px; }
+        .amount-val { font-size: 22px; font-weight: 800; color: var(--dark); letter-spacing: -0.5px; }
+        .cust-actions { padding: 10px 15px; background: rgba(255,255,255,0.5); border-top: 1px solid rgba(0,0,0,0.05); display: grid; gap: 10px; border-bottom-left-radius: var(--card-radius); border-bottom-right-radius: var(--card-radius); }
+        
+        .btn-act, .user-checkbox-btn { border: none; padding: 10px; border-radius: 10px; cursor: pointer; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px; height: 42px; width: 100%; box-sizing: border-box; background: white; border: 1px solid #e0e0e0; color: #555; }
+        .btn-act-call { color: var(--secondary); } 
+        .btn-act-contract { background: #34495e; color: white; border:none; } 
+        .btn-act-info { background: #0abde3; color: white; border:none; } 
+        .btn-act-pay { background: #5f27cd; color: white; border:none; } 
+        .btn-act-postpone { color: #7e22ce; } 
+        .btn-disabled { background: #f1f1f1 !important; color: #ccc !important; border: 1px solid #eee !important; cursor: not-allowed !important; }
+        
+        .grid-admin-actions { grid-template-columns: 1fr 1fr 1fr 1fr; } .grid-user-actions { grid-template-columns: 1fr 1fr 1fr 1fr; } 
+        .grid-closed-actions { grid-template-columns: 1fr 1fr; }
+        @media (max-width: 600px) { .perf-container { grid-template-columns: 1fr; } .grid-admin-actions { grid-template-columns: 1fr 1fr; } .grid-user-actions { grid-template-columns: 1fr 1fr; } }
+        
+        .login-overlay { position: fixed; top: 0; left: 100%; width: 100%; height: 100%; background: rgba(43, 45, 66, 0.98); z-index: 9000; display: flex; align-items: center; justify-content: center; }
+        .login-box { background: white; padding: 30px 40px; border-radius: 15px; width: 320px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .user-profile-badge { font-size: 11px; background: #eef3ff; color: var(--primary); padding: 3px 8px; border-radius: 15px; margin-left: 8px; cursor: pointer; display:inline-flex; align-items:center; gap:5px; }
+        .loading-state { text-align: center; padding: 40px; color: var(--gray); }
+        @keyframes slideDown { from {opacity:0; transform:translateY(-10px);} to {opacity:1; transform:translateY(0);} }
+        .swal2-file-input { font-size: 14px; margin-top: 10px; }
     </style>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#4361ee">	
 </head>
 <body>
 
-    <div class="editor-panel">
-        <h2>กรอกข้อมูลใบเสร็จ</h2>
-
-        <div class="edit-search-box">
-            <label style="color:#856404; font-weight:bold;">🔍 ค้นหาบิลเพื่อแก้ไข (Edit)</label>
-            <div class="search-row">
-		
-                <input type="text" id="search-book" placeholder="เล่มที่ (เช่น 6601)" style="width: 40%;">
-                <input type="text" id="search-no" placeholder="เลขที่ (เช่น 0001)" style="width: 40%;">
-                <button class="btn-search" onclick="searchBillToEdit()">ค้นหา</button>
-            </div>
-            <div id="mode-indicator" style="margin-top:5px;">
-                <span class="mode-badge mode-new">สถานะ: สร้างบิลใหม่</span>
-            </div>
-            <button id="btn-cancel-edit" class="btn-delete" style="display:none; width:100%; margin-top:5px;" onclick="resetToNewMode()">ยกเลิกการแก้ไข (กลับไปสร้างใหม่)</button>
-        </div>
-
-        <div class="contract-import-box">
-            <label style="color:#2e7d32; font-weight:bold;">📂 ดึงข้อมูลจากสัญญา (New)</label>
-            <div class="search-row">
-                <input type="text" id="import-contract-no" placeholder="ระบุเลขที่สัญญา (เช่น 66/001)" style="width: 70%;">
-                <button class="btn-import" onclick="importFromContract()">ดึงข้อมูล</button>
-            </div>
-        </div>
-        
-        <div class="form-group" style="background: #e3f2fd; padding: 10px; border-radius: 5px; border: 1px solid #90caf9;">
-            <label style="color: #1565c0;">🏦 ชื่อบัญชีรับเงิน (สำหรับตรวจสลิป)</label>
-            <input type="text" id="in-verify-name" placeholder="ระบุชื่อบัญชีที่ตรงกับสลิป">
-            <small style="color:#666; font-size:0.8em;">* ใช้ตรวจสอบเท่านั้น ไม่แสดงในใบเสร็จ</small>
-        </div>
-        <div class="form-group">
-            <label>รหัสอ้างอิง (Auto) <small style="color:blue;">*บันทึกลง Col O</small></label>
-            <input type="text" id="in-security-ref" class="readonly-field" readonly>
-            <button class="btn-refresh" onclick="generateSecurityCode()">↻ สุ่มใหม่</button>
-        </div>
-
-        <div class="form-group">
-            <label>วันที่</label>
-            <input type="date" id="in-date" oninput="saveHistory(); handleDateChange(this.value)">
-        </div>
-
-		<div class="form-group">
-    <label>รหัสเซลล์</label>
-    <select id="in-sale-code" onchange="fetchNextBillNo()">
-         <option value="T">T</option>
-         <option value="K">K</option>
-         <option value="N">N</option>
-    </select>
-</div>
-
-        <div class="form-group">
-            <label>สัญญาเลขที่</label>
-            <input type="text" id="in-contract-no" oninput="saveHistory(); sync('contract-no')">
-        </div>
-
-        <div style="display: flex; gap: 10px;">
-            <div class="form-group" style="width: 50%;">
-                <label>ชุดที่ (Auto)</label>
-                <input type="text" id="in-book" class="readonly-field" readonly>
-            </div>
-            <div class="form-group" style="width: 50%;">
-                <label>เลขที่ (Auto)</label>
-                <div style="display:flex; gap:5px;">
-                     <input type="text" id="in-no" value="0001" oninput="saveHistory(); sync('no')" onchange="generateSecurityCode()">
-                     <button class="btn-refresh" onclick="fetchNextBillNo()" title="โหลดเลขล่าสุด">↻</button>
-                </div>
-            </div>
-        </div>
-        
-        <hr>
-        <div class="form-group">
-            <label>ชื่อร้านค้าตัวแทน (แสดงในบิล)</label>
-            <input type="text" id="in-shop-name" oninput="saveHistory(); sync('shop-name')">
-        </div>
-        <div class="form-group">
-            <label>เบอร์โทรเซลล์</label>
-            <input type="text" id="in-shop-phone" oninput="saveHistory(); formatPhone(this)">
-        </div>
-        <hr>
-        
-        <div class="form-group">
-            <label>ได้รับเงินจาก (ลูกค้า)</label>
-            <input type="text" id="in-customer" oninput="saveHistory(); sync('customer')">
-        </div>
-
-        <div class="form-group">
-            <label>ชื่อสินค้า</label>
-            <input type="text" id="in-product-name" oninput="saveHistory(); sync('product-name')">
-        </div>
-
-        <div class="form-group">
-            <label>ประเภทการชำระ</label>
-            <select id="in-type" onchange="saveHistory(); toggleType()">
-                <option value="">-- เลือก --</option>
-                <option value="contract">วันทำสัญญาซื้อ</option>
-                <option value="installment">ค่างวด</option>
-            </select>
-        </div>
-        
-        <div class="form-group" id="group-installment" style="display:none;">
-            <div style="display: flex; gap: 10px;">
-                <div style="width: 50%;">
-                    <label>งวดที่</label>
-                    <input type="text" id="in-period" oninput="saveHistory(); sync('period'); calculateRemaining()">
-                </div>
-                <div style="width: 50%;">
-                    <label style="color:green;">ทั้งหมด</label>
-                    <input type="number" id="in-total-period" oninput="calculateRemaining()">
-                </div>
-            </div>
-        </div>
-        
-        <div class="form-group">
-            <label>จำนวนเงิน (บาท) <span style="color:red; font-size:0.8em;">*ต้องกรอกก่อนแนบสลิป</span></label>
-            <input type="text" id="in-amount" oninput="saveHistory(); formatMoney(this)">
-        </div>
-
-        <div class="form-group" style="background: #e8f0fe; padding: 10px; border-radius: 5px; border: 1px solid #b3d7ff;">
-            <label style="color: #004085;">📎 แนบรูปสลิป (ตรวจสอบยอดอัตโนมัติ)</label>
-            
-            <div id="old-slip-section" style="display:none; margin-bottom:10px;">
-                 <small style="color:red;">* มีสลิปเดิมอยู่แล้ว (ถ้าไม่เลือกใหม่จะใช้รูปนี้)</small>
-                 <div class="old-slip-wrapper">
-                    <img id="old-slip-img" src="" style="max-width:100%; max-height:150px;">
-                 </div>
-            </div>
-
-            <input type="file" id="in-slip-file" accept="image/*" multiple onchange="previewSlip(this)">
-            <div id="slip-preview-container" class="slip-preview-container"></div>
-        </div>
-        
-        <div class="form-group">
-            <label>รูปแบบการชำระ</label>
-            <select id="in-pay-method" onchange="saveHistory()">
-            <option value="โอน">🏦 โอน</option>
-            <option value="โอนร้าน">🏪 โอนร้าน</option>
-			<option value="เงินสด">💵 เงินสด</option>
-            </select>
-        </div>
-        
-        <hr>
-        <h3>ส่วนยอดคงเหลือ</h3>
-        <div class="form-group">
-            <label>จำนวนงวดคงเหลือ (งวด) <span id="calc-status" style="color:blue;"></span></label>
-            <input type="text" id="in-rem-month" oninput="saveHistory(); sync('rem-month')">
-        </div>
-        <div class="form-group">
-            <label>งวดละ (บาท)</label>
-            <input type="text" id="in-rem-amount" oninput="saveHistory(); formatMoney(this)">
-        </div>
-        <div class="form-group">
-            <label>ชำระทุกวันที่</label>
-            <input type="text" id="in-due-date" oninput="saveHistory(); sync('due-date')">
-        </div>
-        <div class="form-group">
-            <label>เริ่มชำระงวดแรก</label>
-            <input type="date" id="in-start-date" oninput="saveHistory(); formatStartDate(this.value)">
-        </div>
-        <hr>
-        <div class="form-group">
-            <label>ผู้รับเงิน</label>
-            <input type="text" id="in-receiver" oninput="saveHistory(); sync('receiver')" placeholder="พิมพ์ชื่อ...">
-            <div style="margin-top: 10px;">
-                <input type="file" id="in-sig-file" accept="image/*" onchange="handleSignatureUpload(this)">
-                <button class="btn-delete" onclick="removeSignature()">ลบรูปลายเซ็น</button>
-            </div>
-        </div>
-
-        <div class="bottom-action-wrapper">
-            <div id="action-popup" class="action-popup">
-                <button class="btn-action btn-sub-print" onclick="window.print()">🖨️ พิมพ์ / PDF</button>
-                <button class="btn-action btn-sub-save" onclick="saveAsImage()">🖼️ บันทึกรูป (Clean Bill)</button>
-                <button class="btn-action btn-sub-cloud" onclick="submitToDatabase()">☁️ บันทึกขึ้น Drive (Full + Auto Update)</button>
-            </div>
-            <button class="btn-action btn-main" onclick="toggleActionPopup()">🚀 จัดการเอกสาร</button>
+    <div id="loginOverlay" class="login-overlay" style="left:0;">
+        <div class="login-box">
+            <h2 style="color:var(--dark); margin-bottom:20px;">เข้าสู่ระบบ</h2>
+            <input type="text" id="loginUser" class="date-input" style="width:100%; margin-bottom:15px; box-sizing:border-box;" placeholder="ชื่อผู้ใช้งาน">
+            <input type="password" id="loginPass" class="date-input" style="width:100%; margin-bottom:15px; box-sizing:border-box;" placeholder="รหัสผ่าน" onkeyup="if(event.key==='Enter') doLogin()">
+            <button class="btn-pill" style="background:var(--primary); width:100%; justify-content:center; padding:12px; font-size:16px;" onclick="doLogin()">เข้าใช้งาน</button>
+            <div id="loginMsg" style="color:red; margin-top:15px; font-size:13px; min-height:20px;"></div>
         </div>
     </div>
 
-    <div class="preview-panel">
-        <div class="paper" id="bill-paper">
-            <div class="security-ref">REF ID: <span id="out-security-ref"></span></div>
-
-            <div class="header">
-                <div class="header-title">แอดวานซ์</div>
-                <div class="header-meta">
-                    <div>สัญญาเลขที่ <span id="out-contract-no"></span></div>
-                    <div>ชุดที่ <span id="out-book"></span></div>
-                    <div>เลขที่ <span id="out-no">0001</span></div>
-                </div>
-            </div>
-
-            <div class="row fixed-width-row">
-                <span class="label">ชื่อร้านค้าตัวแทน</span>
-                <span class="fill-line" id="out-shop-name"></span>
-            </div>
-            <div class="row fixed-width-row">
-                <span class="label">เบอร์โทรเซลล์</span>
-                <span class="fill-line" id="out-shop-phone"></span>
-            </div>
-
-            <div style="text-align: center; font-size: 20pt; font-weight: bold; margin: 10px 0;">ใบเสร็จรับเงิน</div>
-
-            <div class="row" style="justify-content: flex-end;">
-                <span class="label">วันที่</span>
-                <span class="fill-line" id="out-date" style="flex-grow: 0; min-width: 150px;"></span>
-            </div>
-
-            <div class="row">
-                <span class="label">ได้รับเงินจาก</span>
-                <span class="fill-line" id="out-customer"></span>
-            </div>
-
-            <div class="row">
-                <span class="label">ชำระค่าสินค้า</span>
-                <span class="fill-line" id="out-product-name" style="width: 30%; flex-grow: 1;"></span>
-                <div class="checkbox-group" style="margin-left: 10px;">
-                    <div class="box" id="box-contract"></div>
-                    <span>วันทำสัญญาซื้อ</span>
-                </div>
-                <div class="checkbox-group" style="margin-left: 10px;">
-                    <div class="box" id="box-installment"></div>
-                    <span>ค่างวด งวดที่</span>
-                </div>
-                <span class="fill-line" id="out-period" style="width: 50px; flex-grow: 0;"></span>
-            </div>
-
-            <div class="row">
-                <span class="label">จำนวนเงิน</span>
-                <span class="fill-line" id="out-amount"></span>
-            </div>
-
-            <div style="margin-top: 15px; padding-top: 10px;">
-                <div class="row">
-                    <span class="label">จำนวนงวดคงเหลือ</span>
-                    <span class="fill-line" id="out-rem-month"></span>
-                    <span class="label">งวด</span>
-                    <span class="label" style="margin-left: 10px;">งวดละ</span>
-                    <span class="fill-line" id="out-rem-amount"></span>
-                    <span class="label">บาท</span>
-                </div>
-                <div class="row">
-                    <span class="label">ชำระทุกวันที่</span>
-                    <span class="fill-line" id="out-due-date"></span>
-                    <span class="label">เริ่มชำระงวดแรก</span>
-                    <span class="fill-line" id="out-start-date"></span>
-                </div>
-            </div>
-
-            <div class="row warning-box">* ให้นำใบเสร็จรับเงินมาด้วยทุกครั้ง *</div>
-
-            <div class="signature-section">
-                <div id="slip-container-paper" class="slip-on-paper-container">
-                    <div class="slip-label" style="width:100%; border-bottom:1px solid #eee; text-align:center; font-weight:bold;">หลักฐานการชำระเงิน</div>
-                    <div id="slip-gallery" class="slip-paper-gallery"></div>
-                </div>
-                <div class="signature-box">
-                    <img id="out-sig-img" class="uploaded-sig">
-                    <div style="height: 50px;"></div> 
-                    <div class="row">
-                        <span class="label">ลงชื่อ</span>
-                        <span class="fill-line" id="out-receiver" style="z-index: 1; position: relative;"></span>
-                    </div>
-                    <div>ผู้รับเงิน</div>
-                </div>
-            </div>
-
-            <div class="footer-wrapper">
-                <div class="footer-text">
-                    <strong>หมายเหตุ:</strong> กรณีชำระล่าช้า หรือ ย้ายที่อยู่ กรุณาโทรแจ้ง หรือแอดไลน์เซลส์ที่เบอร์ 081-909-7919<br>
-                    <small>โปรดเก็บใบนี้ไว้เป็นหลักฐานเพื่อตรวจสอบ รายละเอียดวิธีชำระค่างวดด้านหลังบิล</small>
-                </div>
+    <div class="header">
+        <div class="header-top">
+            <h2 id="appTitle"><i class="fas fa-chart-pie"></i> ระบบติดตามยอด</h2>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <span id="currentTime" style="font-size:12px; color:var(--gray);"></span>
+                <button id="btnLogout" class="btn-icon btn-logout" onclick="doLogout()" style="display:none;"><i class="fas fa-sign-out-alt"></i> ออก</button>
             </div>
         </div>
+        <div class="tools-bar">
+            <div class="search-box-group">
+                <input type="text" id="searchInput" class="search-input" placeholder="🔍 ค้นหารายละเอียดสัญญา..." onkeyup="if(event.key==='Enter') doGlobalSearch()">
+                <i class="fas fa-search btn-search-icon" onclick="doGlobalSearch()"></i>
+            </div>
+            
+            <input type="date" id="filterDate" class="date-input" onchange="loadData()">
+            <button class="btn-icon btn-refresh" onclick="loadData()"><i class="fas fa-sync-alt"></i></button>
+            
+            <button class="btn-pill" style="background: linear-gradient(135deg, #1e3c72, #2a5298);" onclick="showAllContracts()"><i class="fas fa-list"></i> ดูสัญญาทั้งหมด</button>
+            
+            <button class="btn-pill btn-closed" onclick="showClosedContracts()"><i class="fas fa-check-double"></i> ปิด/ครบงวด</button>
+            <button id="btnExpense" class="btn-pill btn-expense" style="display:none;" onclick="recordExpense()"><i class="fas fa-file-invoice-dollar"></i> บันทึกรายจ่าย</button>
+            <button id="btnShopReport" class="btn-pill" style="background: linear-gradient(135deg, #11998e, #38ef7d); display:none;" onclick="showShopTransferReport()">
+                <i class="fas fa-money-bill-wave"></i> ยอดโอนร้าน
+            </button>
+            <button id="btnPrint" class="btn-icon btn-print" onclick="printReport()"><i class="fas fa-print"></i></button>
+            <button id="btnExcel" class="btn-icon btn-excel" onclick="exportToExcel()"><i class="fas fa-file-excel"></i></button>
+            <button id="btnReset" class="btn-icon btn-reset" onclick="resetHidden()"><i class="fas fa-eye"></i></button>
+            
+            <button id="btnAdmin" class="btn-icon" style="background:#2c3e50; display:none;" onclick="manageUsers()" title="จัดการผู้ใช้"><i class="fas fa-users-cog"></i></button>
+        </div>
+    </div>
+
+    <div id="adminDashboard" class="perf-container" style="display:none; background:#f0f3f4; border-bottom:1px solid #ddd; padding-bottom:10px; margin-bottom: 0;">
+        <div id="boxCost" class="stat-card" style="border-left: 5px solid #e74c3c;">
+            <div class="stat-header"><i class="fas fa-box-open" style="color:#e74c3c"></i> <span>ต้นทุนรวม (Cost)</span></div>
+            <div class="stat-body"><h1 id="txtTotalCost" class="big-number" style="color:#e74c3c; font-size:32px;">0</h1><span class="unit-text">บาท</span></div>
+        </div>
+        <div id="boxProfit" class="stat-card" style="border-left: 5px solid #27ae60;">
+            <div class="stat-header"><i class="fas fa-chart-line" style="color:#27ae60"></i> <span>กำไรสุทธิ (Profit)</span></div>
+            <div class="stat-body"><h1 id="txtNetProfit" class="big-number" style="color:#27ae60; font-size:32px;">0</h1><span class="unit-text">บาท (ขาย - ทุน)</span></div>
+        </div>
+    </div>
+
+    <div class="perf-container" id="statContainer">
+        <div id="cardDaily" class="stat-card">
+            <div class="stat-header"><i class="fas fa-wallet" style="color:#ff6b6b"></i> <span>ยอดเก็บได้วันนี้ (Daily)</span></div>
+            <div class="stat-body"><h1 id="txtTodayCollected" class="big-number" style="color:#4361ee;">0</h1><span class="unit-text">บาท</span></div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-header"><i class="fas fa-sack-dollar" style="color:#54a0ff"></i> <span>ยอดสะสมเดือนนี้ (Monthly)</span></div>
+            <div class="stat-body"><h1 id="txtMonthCollected" class="big-number" style="color:#3f37c9;">0</h1><span class="unit-text">บาท</span></div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-header"><i class="fas fa-coins" style="color:gold"></i> <span>ค่าคอมมิชชั่น (20%)</span></div>
+            <div class="stat-body"><h1 id="txtCommission" class="big-number" style="color:gold;">0</h1><span class="unit-text">บาท (สะสมเดือนนี้)</span></div>
+        </div>
+    </div>
+
+    <div class="list-container">
+        <div id="searchResultTitle" style="display:none; margin-bottom:10px; font-weight:bold; color:var(--primary);">ผลการค้นหา: <span id="txtSearchKeyword"></span> <button onclick="clearSearch()" style="background:#ddd; border:none; padding:3px 8px; border-radius:5px; cursor:pointer; font-size:12px;">ล้าง</button></div>
+        <div id="polygonContainer" class="polygon-grid"></div>
+        <div id="contractListHeading" style="font-weight:bold; color:#555; margin: 15px 0 5px 0; display:none;">▼ รายการสัญญา</div>
+        <div id="contractList"></div>
     </div>
 
     <script>
-        // -------------------------------------------------------------
-        // ⚙️ CONFIG & API SETUP
-        // -------------------------------------------------------------
-        var googleScriptUrl = "https://script.google.com/macros/s/AKfycbw-CyPYltmiRAEq_g6LPkaJYydlEyNuDc9ronP0Fr5oqk4SPC8F-kBWzAhYCeLHLOdbTQ/exec"; 
-        const SLIP_API_KEY = "cc337cb2-f35b-40b1-a92d-0ed556755722";
+        const API_URL = 'https://script.google.com/macros/s/AKfycbw-CyPYltmiRAEq_g6LPkaJYydlEyNuDc9ronP0Fr5oqk4SPC8F-kBWzAhYCeLHLOdbTQ/exec'; 
+        let currentUser = null;
+        let currentTrackingData = [], filteredData = [], globalSummary = {};
+        const toBase64 = file => new Promise((resolve, reject) => { const reader = new FileReader(); reader.readAsDataURL(file); reader.onload = () => resolve(reader.result); reader.onerror = error => reject(error); });
+        function linkify(text) { if (!text) return ''; const urlRegex = /(https?:\/\/[^\]\s]+)/g; return text.replace(urlRegex, function(url) { let downloadUrl = url; if(url.includes('drive.google.com') && url.includes('export=view')) { downloadUrl = url.replace('export=view', 'export=download'); } return `<span style="display:inline-flex; align-items:center; gap:4px; vertical-align:middle; margin-right:5px;"><a href="${url}" target="_blank" style="text-decoration:none; background:#e3f2fd; color:#1565c0; padding:2px 6px; border-radius:4px; font-size:11px; border:1px solid #90caf9;"><i class="fas fa-eye"></i> ดู</a><a href="${downloadUrl}" target="_blank" style="text-decoration:none; background:#ffebee; color:#c62828; padding:2px 6px; border-radius:4px; font-size:11px; border:1px solid #ef9a9a;" title="บันทึกรูป"><i class="fas fa-save"></i></a></span>`; }); }
 
-        var isEditMode = false; 
-        var currentTransRef = ""; 
+        window.onload = function() {
+            const saved = localStorage.getItem('kamky_user');
+            if (saved) { currentUser = JSON.parse(saved); initApp(); } 
+            else { document.getElementById('filterDate').valueAsDate = new Date(); }
+        };
 
-        // -------------------------------------------------------------
-        // 🛠️ UTILITY & MAIN LOGIC
-        // -------------------------------------------------------------
-        function toggleActionPopup() { const p = document.getElementById('action-popup'); p.style.display = (p.style.display==='block')?'none':'block'; if(p.style.display==='block') p.scrollIntoView({behavior:'smooth'}); }
-        
-        function searchBillToEdit() {
-            const book = document.getElementById('search-book').value;
-            const no = document.getElementById('search-no').value;
-            if(!book || !no) return alert("กรุณากรอกเล่มที่และเลขที่");
+        // 🔥 แก้ไข 1: Login ปกติ + บันทึก Session ลงรายการ
+        async function doLogin() {
+            const u = document.getElementById('loginUser').value.trim();
+            const p = document.getElementById('loginPass').value.trim();
+            const msg = document.getElementById('loginMsg');
+            if(!u || !p) { msg.innerText = 'กรุณากรอกข้อมูล'; return; }
             
-            const btn = document.querySelector('.btn-search'); 
-            const oldTxt = btn.innerText; btn.innerText="🔍.."; btn.disabled=true;
-            
-            fetch(`${googleScriptUrl}?action=findBill&book=${book}&no=${no}`, {
-    method: 'GET',
-    redirect: 'follow' 
-})
-            .then(r=>r.json())
-            .then(d => {
+            msg.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ตรวจสอบ...';
+            try {
+                const res = await fetch(API_URL, { method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({action:'login', username:u, password:p}) });
+                const d = await res.json();
                 if(d.status === 'success') {
-                    enterEditMode(d.data);
-                } else {
-                    alert("❌ ไม่พบข้อมูลบิลนี้");
-                }
-            })
-            .catch(e => alert("Error finding bill: " + e))
-            .finally(() => { btn.innerText = oldTxt; btn.disabled = false; });
+                    // ✅ บันทึก User ปัจจุบัน และ เพิ่มลงใน Saved Sessions
+                    saveSession(d.user);
+                    location.reload(); // รีโหลดเพื่อเข้าสู่ระบบ
+                } else { msg.innerHTML = `รหัสผ่านไม่ถูกต้อง`; msg.style.color = 'red'; }
+            } catch(e) { msg.innerText = 'เชื่อมต่อล้มเหลว'; msg.style.color = 'red'; }
         }
 
-        function enterEditMode(data) {
-            isEditMode = true;
-            document.getElementById('mode-indicator').innerHTML = `<span class="mode-badge mode-edit">สถานะ: แก้ไขข้อมูล (Update Mode)</span>`;
-            document.getElementById('btn-cancel-edit').style.display = 'block';
-            document.getElementById('in-book').readOnly = true;
-            document.getElementById('in-no').readOnly = true;
-
-            document.getElementById('in-book').value = data.book;
-            document.getElementById('in-no').value = data.no;
-            document.getElementById('in-security-ref').value = data.ref || "";
-            document.getElementById('in-date').value = data.date ? data.date.split('T')[0] : "";
-            document.getElementById('in-contract-no').value = data.contractNo || "";
-            document.getElementById('in-shop-name').value = data.shopName || "";
-            document.getElementById('in-shop-phone').value = data.shopPhone || "";
-            document.getElementById('in-customer').value = data.customer || "";
-            document.getElementById('in-product-name').value = data.product || "";
-            document.getElementById('in-amount').value = data.amount || "";
-            document.getElementById('in-type').value = (data.period && data.period !== "-") ? "installment" : "contract";
-            document.getElementById('in-period').value = data.period || "";
-            document.getElementById('in-rem-month').value = data.remMonth || "";
-            document.getElementById('in-rem-amount').value = data.remAmount || "";
-            document.getElementById('in-due-date').value = data.dueDate || "";
-            document.getElementById('in-start-date').value = data.startDate ? data.startDate.split('T')[0] : "";
-            document.getElementById('in-receiver').value = data.receiver || "";
-            document.getElementById('in-pay-method').value = data.payMethod || "เงินสด";
+        // 🔥 ฟังก์ชันใหม่: บันทึก Session ลง LocalStorage (Multi-User)
+        function saveSession(user) {
+            currentUser = user;
+            localStorage.setItem('kamky_user', JSON.stringify(currentUser));
             
-            // ✅ แก้ไข 1: เก็บค่า TransRef เดิมไว้ (ป้องกันค่าหายเมื่อบันทึก)
-            currentTransRef = data.transRef || ""; 
+            // ดึงรายการเก่ามา
+            let sessions = JSON.parse(localStorage.getItem('kamky_saved_sessions') || "[]");
+            // ลบชื่อเดิมออกก่อน (เพื่ออัปเดตข้อมูลล่าสุด)
+            sessions = sessions.filter(s => s.username !== user.username);
+            // เพิ่มชื่อใหม่เข้าไป
+            sessions.push(user);
+            localStorage.setItem('kamky_saved_sessions', JSON.stringify(sessions));
+        }
 
-            // ✅ แก้ไข 2: รับค่าจำนวนงวดทั้งหมด (Total Period) มาแสดงและคำนวณ
-            document.getElementById('in-total-period').value = data.totalPeriod || "";
-            calculateRemaining(); // สั่งคำนวณยอดคงเหลือใหม่
+        // 🔥 แก้ไข 2: เปลี่ยน doLogout ให้เป็นแค่การเคลียร์ Active User (แต่รายชื่อยังอยู่)
+        function doLogout() { 
+            localStorage.removeItem('kamky_user'); 
+            location.reload(); 
+        }
 
-            const oldSlipSection = document.getElementById('old-slip-section');
-            const paperContainer = document.getElementById('slip-container-paper');
-            const paperGallery = document.getElementById('slip-gallery');
+        // 🔥 ฟังก์ชันใหม่: ลบ User ออกจากรายการจำถาวร
+        function removeSavedUser(username) {
+            let sessions = JSON.parse(localStorage.getItem('kamky_saved_sessions') || "[]");
+            sessions = sessions.filter(s => s.username !== username);
+            localStorage.setItem('kamky_saved_sessions', JSON.stringify(sessions));
             
-            document.getElementById('in-slip-file').value = "";
-            document.getElementById('slip-preview-container').innerHTML = "";
-            paperGallery.innerHTML = "";
-
-            if(data.slipImage && data.slipImage !== "") {
-                oldSlipSection.style.display = 'block';
-                let src = data.slipImage.startsWith('http') ? data.slipImage : "data:image/jpeg;base64," + data.slipImage;
-                document.getElementById('old-slip-img').src = src;
-                
-                paperContainer.style.display = 'flex';
-                const img = document.createElement('img');
-                img.src = src;
-                img.className = 'slip-paper-img';
-                paperGallery.appendChild(img);
+            // ถ้าลบตัวที่ใช้อยู่ ให้ Logout ด้วย
+            if (currentUser && currentUser.username === username) {
+                doLogout();
             } else {
-                oldSlipSection.style.display = 'none';
-                paperContainer.style.display = 'none';
-            }
-
-            sync('contract-no'); sync('no'); sync('shop-name'); sync('customer');
-            sync('product-name'); sync('period'); sync('rem-month'); sync('due-date'); sync('receiver'); sync('security-ref');
-            formatDate(document.getElementById('in-date').value);
-            formatStartDate(document.getElementById('in-start-date').value);
-            formatPhone(document.getElementById('in-shop-phone'));
-            formatMoney(document.getElementById('in-amount'));
-            formatMoney(document.getElementById('in-rem-amount'));
-            toggleType();
-
-            alert("📝 โหลดข้อมูลมาแก้ไขแล้ว");
-        }
-
-        function resetToNewMode() {
-            isEditMode = false;
-            currentTransRef = "";
-            document.getElementById('mode-indicator').innerHTML = `<span class="mode-badge mode-new">สถานะ: สร้างบิลใหม่</span>`;
-            document.getElementById('btn-cancel-edit').style.display = 'none';
-            document.getElementById('in-book').readOnly = true; 
-            document.getElementById('in-no').readOnly = false; 
-            document.getElementById('old-slip-section').style.display = 'none';
-            document.getElementById('slip-container-paper').style.display = 'none';
-            document.getElementById('slip-gallery').innerHTML = '';
-            
-            document.querySelectorAll('input:not(.readonly-field)').forEach(i => i.value = "");
-            generateSecurityCode();
-            fetchNextBillNo(); 
-            alert("🔄 กลับสู่โหมดสร้างบิลใหม่");
-        }
-
-        function importFromContract() {
-            if(isEditMode) { if(!confirm("คุณกำลังอยู่ในโหมดแก้ไข การดึงสัญญาใหม่จะทับข้อมูลปัจจุบัน?")) return; }
-            const cNo = document.getElementById('import-contract-no').value;
-            if(!cNo) return alert("กรุณากรอกเลขสัญญา");
-            const btn = document.querySelector('.btn-import'); const old = btn.innerText; btn.innerText="⏳.."; btn.disabled=true;
-            fetch(`${googleScriptUrl}?action=getContractData&c_no=${encodeURIComponent(cNo)}`, {
-    method: 'GET',
-    redirect: 'follow' 
-}).then(r=>r.json()).then(d=>{
-                if(d.status==='success') {
-                    document.getElementById('in-contract-no').value = d.c_no;
-					if (d.c_no) {
-    let prefix = d.c_no.split('-')[0].trim().toUpperCase();
-    let saleSelect = document.getElementById('in-sale-code');
-    if (prefix === 'T' || prefix === 'K' || prefix === 'N') {
-        saleSelect.value = prefix;
-        fetchNextBillNo(); 
-    }
-}
-                    document.getElementById('in-customer').value = d.b_name; 
-                    document.getElementById('in-product-name').value = d.p_name;
-                    document.getElementById('in-rem-amount').value = d.amount;
-                    document.getElementById('in-amount').value = d.amount;
-                    if(d.due_day) document.getElementById('in-due-date').value = d.due_day;
-                    if(d.first_date) document.getElementById('in-start-date').value = d.first_date;
-                    document.getElementById('in-type').value = 'installment';
-                    document.getElementById('in-period').value = d.next_period;
-                    document.getElementById('in-total-period').value = d.total_period;
-                    sync('contract-no'); sync('customer'); sync('product-name'); sync('due-date'); sync('period');
-                    formatMoney(document.getElementById('in-rem-amount')); formatMoney(document.getElementById('in-amount'));
-                    formatStartDate(document.getElementById('in-start-date').value); toggleType(); calculateRemaining(); 
-                    if(!isEditMode) fetchNextBillNo();
-                    alert(`✅ ดึงข้อมูลสำเร็จ!`);
-                } else { alert("❌ ไม่พบเลขที่สัญญานี้"); }
-            }).catch(e=>alert("Error: "+e)).finally(()=>{ btn.innerText=old; btn.disabled=false; });
-        }
-
-        function calculateRemaining() {
-            const cur = parseInt(document.getElementById('in-period').value)||0;
-            const tot = parseInt(document.getElementById('in-total-period').value)||0;
-            if(tot>0 && cur>0) {
-                const rem = tot-cur;
-                document.getElementById('in-rem-month').value = (rem>=0)?rem:0; sync('rem-month');
-                document.getElementById('calc-status').innerText = (rem>=0)?` (เหลือ ${rem})`:" (เกิน)";
+                openSwitchAccountModal(); // เปิดหน้าต่างสลับบัญชีใหม่เพื่ออัปเดตรายการ
             }
         }
-        
-        function fetchNextBillNo() {
-    if(isEditMode) return;
-    const book = document.getElementById('in-book').value;
-    const saleCode = document.getElementById('in-sale-code').value; 
 
-    if(!book) return;
-
-    fetch(`${googleScriptUrl}?action=getLastNo&book=${book}&sale_code=${saleCode}`)
-    .then(r=>r.json())
-    .then(d=>{ 
-        if(d.status==='success'){ 
-            document.getElementById('in-no').value = d.nextNo; 
-        }
-    });
-}
-        
-function submitToDatabase() {
-    if(!googleScriptUrl) return alert("URL Error");
-
-    const btn = document.querySelector('.btn-sub-cloud'); 
-    const oldText = btn.innerHTML; 
-    btn.innerHTML = isEditMode ? "⏳ กำลังแก้ไขและอัปเดต..." : "⏳ กำลังบันทึกและอัปเดต..."; 
-    btn.disabled = true;
-
-    const paper = document.getElementById("bill-paper");
-    const slipContainer = document.getElementById('slip-container-paper');
-    const hasSlips = document.getElementById('slip-gallery').children.length > 0;
-    
-    const originalSlipDisplay = slipContainer.style.display;
-    const originalClass = paper.className;
-
-    const desktopConfig = {
-        scale: 2,           
-        useCORS: true,      
-        windowWidth: 1280,  
-        x: 0, y: 0, scrollY: 0,
-
-        onclone: (clonedDoc) => {
-            const clonedHtml = clonedDoc.documentElement;
-            const clonedBody = clonedDoc.body;
-
-            clonedHtml.style.height = 'auto';
-            clonedBody.style.height = 'auto';
-            
-            clonedBody.style.width = '1280px';
-            clonedBody.style.minHeight = 'auto';
-            clonedBody.style.margin = '0';
-            clonedBody.style.padding = '0';
-            clonedBody.style.overflow = 'visible';
-
-            const clonedPaper = clonedDoc.getElementById('bill-paper');
-            if (clonedPaper) {
-                clonedPaper.style.width = '210mm';      
-                clonedPaper.style.minHeight = 'auto';  
-                clonedPaper.style.height = 'max-content'; 
-                clonedPaper.style.boxShadow = 'none';     
-                clonedPaper.style.margin = '0 auto';
-            }
-        }
-    };
-
-    slipContainer.style.display = 'none';
-    paper.classList.add('compact-mode');
-
-    html2canvas(paper, desktopConfig).then(async cleanCanvas => {
-        const cleanBase64 = cleanCanvas.toDataURL("image/jpeg", 0.8).split(',')[1];
-
-        paper.classList.remove('compact-mode');
-        if(hasSlips) { slipContainer.style.display = 'flex'; }
-
-        html2canvas(paper, desktopConfig).then(async fullCanvas => {
-            const fullBase64 = fullCanvas.toDataURL("image/jpeg", 0.8).split(',')[1];
-
-            slipContainer.style.display = originalSlipDisplay;
-            paper.className = originalClass;
-            
-            // ✅ แก้ไข 3: ตัด Sale Code ออกจากเลขที่บิลก่อนส่ง (ป้องกัน 6902-T-T-0001)
-            let rawNo = document.getElementById('in-no').value.trim();
-            let saleCode = document.getElementById('in-sale-code').value;
-            if (saleCode && rawNo.toUpperCase().startsWith(saleCode + "-")) {
-                rawNo = rawNo.substring(saleCode.length + 1);
-            }
-
-            const p = {
-                action: isEditMode ? 'updateData' : 'saveData', 
-                includeContractUpdate: true,  
-                apiKey: SLIP_API_KEY,         
-                saleCode: saleCode,
-                book: document.getElementById('in-book').value, 
-                no: rawNo, // ส่งค่าเลขที่ที่ถูก Clean แล้ว
-                ref: document.getElementById('in-security-ref').value, 
-                dateISO: document.getElementById('in-date').value, 
-                date: convertDateToThaiShort(document.getElementById('in-date').value),
-                contractNo: document.getElementById('in-contract-no').value, 
-                shopName: document.getElementById('in-shop-name').value,
-                shopPhone: document.getElementById('in-shop-phone').value, 
-                customer: document.getElementById('in-customer').value,
-                product: document.getElementById('in-product-name').value, 
-                period: document.getElementById('in-period').value || "-", 
-                amount: document.getElementById('in-amount').value, 
-                remMonth: document.getElementById('in-rem-month').value,
-                remAmount: document.getElementById('in-rem-amount').value, 
-                dueDate: document.getElementById('in-due-date').value,
-                startDate: document.getElementById('in-start-date').value, 
-                receiver: document.getElementById('in-receiver').value,
-                payMethod: document.getElementById('in-pay-method').value, 
-                receiptImage: fullBase64,       
-                cleanReceiptImage: cleanBase64, 
-                slipImage: "", 
-                transRef: currentTransRef 
-            };
-    
-            const f = document.getElementById('in-slip-file');
-            if(f.files.length > 0) {
-                try {
-                    const mergedBase64 = await mergeImagesAndGetBase64(f.files);
-                    p.slipImage = mergedBase64.split(',')[1];
-                    sendData(p, btn, oldText);
-                } catch(err) {
-                    alert("Error merging images: " + err);
-                    btn.innerHTML = oldText; btn.disabled = false;
-                }
-            } else {
-                if(isEditMode) {
-                    const oldImg = document.getElementById('old-slip-img').getAttribute('src');
-                    if(oldImg && oldImg !== "") { p.slipImage = "KEEP"; }
-                }
-                sendData(p, btn, oldText); 
-            }
-        });
-    });
-}
-        
-        function sendData(p, b, t) { 
-    fetch(googleScriptUrl, {
-        method: 'POST',
-        body: JSON.stringify(p)
-    })
-    .then(r => r.json()) 
-    .then(() => { 
-        alert(isEditMode ? '✅ แก้ไขข้อมูลเรียบร้อย!' : '✅ บันทึกใบเสร็จสำเร็จ!'); 
-        
-        const contractUrl = "https://kamkywork.github.io/sale_contract/"; 
-        const c_no = document.getElementById('in-contract-no').value; 
-
-        if (c_no) {
-            window.open(`${contractUrl}?auto_update=true&c_no=${encodeURIComponent(c_no)}`, 
-            'AutoUpdater', 'width=1200,height=800,left=0,top=0');
+        function checkPerm(menuCode) {
+            if (!currentUser) return false;
+            const userPerms = (currentUser.allowed_menus || "").toLowerCase();
+            if (currentUser.role === 'admin') return true; 
+            return userPerms.includes(menuCode.toLowerCase());
         }
 
-        if(isEditMode) resetToNewMode(); 
-        else { 
-           fetchNextBillNo();
-           document.getElementById('in-slip-file').value = "";
-           document.getElementById('slip-preview-container').innerHTML="";
-           document.getElementById('slip-gallery').innerHTML="";
-           document.getElementById('slip-container-paper').style.display='none';
-           currentTransRef = ""; 
-        }
-        b.innerHTML = t; b.disabled = false; 
-    })
-    .catch(e => { 
-        alert('❌ Error: ' + e); 
-        b.innerHTML = t; 
-        b.disabled = false; 
-    }); 
-}
-        
-        function saveAsImage() {
-            const paper = document.getElementById("bill-paper"); 
-            const slipContainer = document.getElementById('slip-container-paper'); 
-            const originalDisplay = slipContainer.style.display;
-            
-            slipContainer.style.display = 'none';
-            paper.classList.add('compact-mode'); 
+        function initApp() {
+            document.getElementById('loginOverlay').style.display = 'none';
+            // เพิ่มปุ่มสลับบัญชีไว้ข้างชื่อ User
+            document.getElementById('appTitle').innerHTML += ` 
+                <span class="user-profile-badge" onclick="userProfile()">
+                    <i class="fas fa-user"></i> ${currentUser.name}
+                </span>
+                <span class="user-profile-badge" style="background:#fff3cd; color:#856404; margin-left:5px;" onclick="openSwitchAccountModal()" title="สลับบัญชี">
+                    <i class="fas fa-exchange-alt"></i> สลับ
+                </span>
+            `;
+            document.getElementById('btnLogout').style.display = 'flex';
+            if(!document.getElementById('filterDate').value) document.getElementById('filterDate').valueAsDate = new Date();
 
-            html2canvas(paper, {
-    scale: 2, 
-    backgroundColor: "#ffffff",
-    useCORS: true,       
-    windowWidth: 1440,   
-    onclone: (clonedDoc) => {
-        const clonedPaper = clonedDoc.getElementById('bill-paper');
-        if(clonedPaper) {
-            clonedPaper.style.transform = 'none';
-        }
-    }
-}).then(c => {
-                const link = document.createElement('a'); 
-                link.download = `Bill-${document.getElementById('in-book').value}-${document.getElementById('in-no').value}.jpg`;
-                link.href = c.toDataURL("image/jpeg", 0.9); 
-                link.click(); 
-                
-                slipContainer.style.display = originalDisplay; 
-                paper.classList.remove('compact-mode');
+            // ... (Logic การแสดงปุ่มตามสิทธิ์ เหมือนเดิม) ...
+            const btnAdmin = document.getElementById('btnAdmin');
+            if (btnAdmin) btnAdmin.style.display = checkPerm('manage_users') ? 'flex' : 'none';
+            const btnExpense = document.getElementById('btnExpense');
+            if (btnExpense) btnExpense.style.display = checkPerm('expense') ? 'flex' : 'none';
+            const btnShopReport = document.getElementById('btnShopReport');
+            if (btnShopReport) btnShopReport.style.display = checkPerm('shop_report') ? 'flex' : 'none';
+            const btnClosed = document.querySelector('.btn-closed');
+            if (btnClosed) btnClosed.style.display = checkPerm('closed') ? 'inline-flex' : 'none';
+            const commonTools = ['btnExcel', 'btnReset'];
+            const canManage = checkPerm('manage_users'); 
+            commonTools.forEach(id => {
+                const el = document.getElementById(id);
+                if(el) el.style.display = canManage ? 'flex' : 'none';
             });
+
+            loadData();
         }
-        
-        var totalSlipAmount = 0;
 
-        function previewSlip(input) {
-            const previewContainer = document.getElementById('slip-preview-container');
-            const paperGallery = document.getElementById('slip-gallery');
-            const paperContainer = document.getElementById('slip-container-paper');
-            const oldSlipSection = document.getElementById('old-slip-section');
-
-            previewContainer.innerHTML = '';
-            paperGallery.innerHTML = '';
-            currentTransRef = ""; 
-            totalSlipAmount = 0; 
-            document.getElementById('in-amount').value = ""; 
-            sync('amount');
-
-            if (input.files && input.files.length > 0) {
-                if(oldSlipSection) oldSlipSection.style.display = 'none';
-                paperContainer.style.display = 'flex';
-                
-                Array.from(input.files).forEach((file, index) => {
-                    const wrapper = document.createElement('div');
-                    wrapper.className = 'slip-check-wrapper';
-
-                    const img = document.createElement('img');
-                    img.className = 'slip-preview-item';
+        // 🔥 ฟังก์ชันใหม่: หน้าต่างสลับบัญชี
+        function openSwitchAccountModal() {
+            let sessions = JSON.parse(localStorage.getItem('kamky_saved_sessions') || "[]");
+            let listHtml = `<div style="text-align:left; max-height:300px; overflow-y:auto;">`;
+            
+            if (sessions.length === 0) {
+                listHtml += `<div style="text-align:center; color:#999; padding:10px;">ไม่มีบัญชีที่บันทึกไว้</div>`;
+            } else {
+                sessions.forEach(u => {
+                    let isActive = (currentUser && currentUser.username === u.username);
+                    let bg = isActive ? '#e8f5e9' : '#fff';
+                    let border = isActive ? '2px solid #4caf50' : '1px solid #ddd';
+                    let icon = isActive ? '<i class="fas fa-check-circle" style="color:#4caf50"></i>' : '<i class="far fa-user-circle"></i>';
                     
-                    const statusText = document.createElement('div');
-                    statusText.id = `slip-status-${index}`;
-                    statusText.className = 'slip-status status-checking';
-                    statusText.innerText = '⏳ เตรียมไฟล์...';
-
-                    wrapper.appendChild(img);
-                    wrapper.appendChild(statusText);
-                    previewContainer.appendChild(wrapper);
-
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        img.src = e.target.result;
-                        const imgPaper = document.createElement('img'); 
-                        imgPaper.src = e.target.result; 
-                        imgPaper.className = 'slip-paper-img';
-                        if(input.files.length > 1) imgPaper.classList.add('multi'); 
-                        paperGallery.appendChild(imgPaper);
-
-                        analyzeSlip(e.target.result, index);
-                    };
-                    reader.readAsDataURL(file);
+                    listHtml += `
+                    <div style="display:flex; justify-content:space-between; align-items:center; background:${bg}; border:${border}; padding:10px; border-radius:8px; margin-bottom:8px;">
+                        <div style="display:flex; align-items:center; gap:10px; cursor:pointer; flex-grow:1;" onclick="switchSession('${u.username}')">
+                            <div style="font-size:20px;">${icon}</div>
+                            <div>
+                                <div style="font-weight:bold; font-size:14px;">${u.name}</div>
+                                <div style="font-size:12px; color:#666;">${u.role} (${u.sale_code || 'All'})</div>
+                            </div>
+                        </div>
+                        <button onclick="removeSavedUser('${u.username}')" style="border:none; background:#ffcdd2; color:#c62828; width:30px; height:30px; border-radius:50%; cursor:pointer;"><i class="fas fa-trash"></i></button>
+                    </div>`;
                 });
-            } else {
-                if(isEditMode && document.getElementById('old-slip-img').src) {
-                    oldSlipSection.style.display = 'block';
-                    paperContainer.style.display = 'flex';
-                    const oldSrc = document.getElementById('old-slip-img').src;
-                    const imgPaper = document.createElement('img'); imgPaper.src = oldSrc; imgPaper.className = 'slip-paper-img';
-                    paperGallery.appendChild(imgPaper);
-                } else {
-                    paperContainer.style.display = 'none';
+            }
+            listHtml += `</div>
+            <button onclick="addNewAccount()" style="width:100%; padding:12px; border:2px dashed #4361ee; background:#f0f4ff; color:#4361ee; border-radius:8px; font-weight:bold; cursor:pointer; margin-top:10px;">
+                <i class="fas fa-plus"></i> เพิ่มบัญชีอื่น
+            </button>`;
+
+            Swal.fire({
+                title: 'สลับผู้ใช้งาน',
+                html: listHtml,
+                showConfirmButton: false,
+                showCloseButton: true,
+                width: '400px'
+            });
+        }
+
+        // 🔥 ฟังก์ชันใหม่: สลับไปใช้ Session ที่เลือก
+        function switchSession(username) {
+            let sessions = JSON.parse(localStorage.getItem('kamky_saved_sessions') || "[]");
+            let targetUser = sessions.find(s => s.username === username);
+            if (targetUser) {
+                currentUser = targetUser;
+                localStorage.setItem('kamky_user', JSON.stringify(currentUser));
+                Swal.fire({ icon: 'success', title: `ยินดีต้อนรับ ${targetUser.name}`, timer: 800, showConfirmButton: false }).then(() => {
+                    location.reload();
+                });
+            }
+        }
+
+        // 🔥 ฟังก์ชันใหม่: Login เพิ่มบัญชี (ผ่าน SweetAlert)
+        async function addNewAccount() {
+            const { value: formValues } = await Swal.fire({
+                title: 'เข้าสู่ระบบบัญชีใหม่',
+                html: `
+                    <input id="swal-login-user" class="swal2-input" placeholder="Username">
+                    <input id="swal-login-pass" type="password" class="swal2-input" placeholder="Password">
+                `,
+                focusConfirm: false,
+                showCancelButton: true,
+                confirmButtonText: 'เข้าสู่ระบบ',
+                preConfirm: () => {
+                    return [
+                        document.getElementById('swal-login-user').value,
+                        document.getElementById('swal-login-pass').value
+                    ]
+                }
+            });
+
+            if (formValues) {
+                const [u, p] = formValues;
+                if(!u || !p) return;
+                
+                Swal.showLoading();
+                try {
+                    const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({action:'login', username:u, password:p}) });
+                    const d = await res.json();
+                    if(d.status === 'success') {
+                        saveSession(d.user); // บันทึกและสลับทันที
+                        Swal.fire({ icon: 'success', title: 'เพิ่มบัญชีเรียบร้อย', timer: 1000 }).then(() => location.reload());
+                    } else {
+                        Swal.fire('Error', 'รหัสผ่านไม่ถูกต้อง', 'error').then(addNewAccount); // ให้ลองใหม่
+                    }
+                } catch(e) {
+                    Swal.fire('Error', 'เชื่อมต่อไม่ได้', 'error');
                 }
             }
         }
-        
-        function analyzeSlip(base64Url, index) {
-            const statusEl = document.getElementById(`slip-status-${index}`);
-            let verifyName = document.getElementById('in-verify-name').value;
-            
-            let remAmountRaw = document.getElementById('in-rem-amount').value;
-            let expectedAmount = remAmountRaw ? parseFloat(remAmountRaw.replace(/,/g, '')) : 0;
-            
-            statusEl.className = 'slip-status status-checking';
-            statusEl.innerText = "⏳ กำลังดึงยอดและตรวจสอบ...";
 
-            const img = new Image();
-            img.src = base64Url;
-            img.onload = function() {
-                const maxDim = 1000;
-                let w = img.width; let h = img.height;
-                if (w > h) { if (w > maxDim) { h *= maxDim / w; w = maxDim; } } 
-                else { if (h > maxDim) { w *= maxDim / h; h = maxDim; } }
-
-                const canvas = document.createElement('canvas');
-                canvas.width = w; canvas.height = h;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, w, h);
-                const resizedBase64 = canvas.toDataURL("image/jpeg", 0.7).split(',')[1];
-
-                fetch(googleScriptUrl, {
-                    method: 'POST',
-                    headers: { "Content-Type": "text/plain" }, 
-                    body: JSON.stringify({
-                        action: 'checkSlip',
-                        image: resizedBase64,
-                        expectedAmount: expectedAmount, 
-                        verifyName: verifyName,
-                        apiKey: SLIP_API_KEY 
-                    })
-                })
-                .then(response => response.json())
-                .then(d => {
-                    if (d.status === 'valid' || d.status === 'amount-mismatch') {
-                        
-                        if (d.actualAmount) {
-                            totalSlipAmount += parseFloat(d.actualAmount);
-                            
-                            let amountInput = document.getElementById('in-amount');
-                            amountInput.value = totalSlipAmount;
-                            formatMoney(amountInput); 
-                            
-                            if (d.transDate) {
-                                const slipDate = new Date(d.transDate);
-                                const dateStr = `${slipDate.getFullYear()}-${String(slipDate.getMonth() + 1).padStart(2, '0')}-${String(slipDate.getDate()).padStart(2, '0')}`;
-                                document.getElementById('in-date').value = dateStr;
-                                handleDateChange(dateStr);
-                            }
-                        }
-
-                        if (d.status === 'amount-mismatch') {
-                            statusEl.className = 'slip-status status-fail'; 
-                            statusEl.innerHTML = `⚠️ ยอด ${d.actualAmount.toLocaleString()} ไม่ตรงงวด (${expectedAmount.toLocaleString()})`;
-                        } else {
-                            statusEl.className = 'slip-status status-pass';
-                            statusEl.innerText = d.message; 
-                            currentTransRef = d.transRef; 
-                        }
-
-                        if(d.message.includes("ชื่อไม่ตรง")) alert(d.message);
-
-                    } else if (d.status === 'duplicate_db') {
-                        statusEl.className = 'slip-status status-fail';
-                        statusEl.innerHTML = "🚨 สลิปซ้ำ";
-                        alert(d.message); 
-                    } else {
-                        statusEl.className = 'slip-status status-fail';
-                        statusEl.innerHTML = d.message;
-                    }
-                })
-                .catch(e => {
-                    statusEl.innerText = "Error: " + e.message;
-                });
-            };
+        // ... (ฟังก์ชันอื่นๆ: loadData, recordExpense, manageUsers, etc. คงเดิม ไม่ต้องแก้) ...
+        async function loadData() {
+            if (!currentUser) return; 
+            const dateInput = document.getElementById('filterDate');
+            if (!dateInput.value) dateInput.valueAsDate = new Date();
+            const date = dateInput.value;
+            document.getElementById('contractList').innerHTML = '<div class="loading-state"><i class="fas fa-spinner fa-spin"></i> กำลังโหลดข้อมูล...</div>';
+            try {
+                const response = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'get_tracking', date: date, user: currentUser }) });
+                const data = await response.json();
+                if (data.contracts) { currentTrackingData = data.contracts; renderDashboard(data, date); } 
+                else { document.getElementById('contractList').innerHTML = '<div class="loading-state">ไม่พบข้อมูล หรือเกิดข้อผิดพลาด</div>'; }
+            } catch (error) { console.error("Load Data Error:", error); document.getElementById('contractList').innerHTML = '<div class="loading-state" style="color:red">เชื่อมต่อล้มเหลว กรุณาลองใหม่</div>'; }
         }
-        
-        function mergeImagesAndGetBase64(fileList) {
-            return new Promise((resolve, reject) => {
-                const images = [];
-                let loadedCount = 0;
-                if(fileList.length === 0) resolve("");
-                Array.from(fileList).forEach(file => {
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        const img = new Image();
-                        img.onload = () => { images.push(img); loadedCount++; if (loadedCount === fileList.length) {
-                                const maxWidth = Math.max(...images.map(i => i.width));
-                                const totalHeight = images.reduce((sum, i) => sum + i.height, 0);
-                                const canvas = document.createElement('canvas'); canvas.width = maxWidth; canvas.height = totalHeight;
-                                const ctx = canvas.getContext('2d'); ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-                                let y = 0; images.forEach(img => { ctx.drawImage(img, 0, y); y += img.height; });
-                                resolve(canvas.toDataURL('image/jpeg', 0.8));
-                        }}; img.src = e.target.result;
-                    }; reader.readAsDataURL(file);
-                });
+
+        async function recordExpense() {
+            if(!currentUser || currentUser.role !== 'admin') return Swal.fire('Access Denied', 'เฉพาะผู้ดูแลระบบเท่านั้น', 'warning');
+            const { value: formValues } = await Swal.fire({
+                title: 'บันทึกรายจ่าย (Cost Center)',
+                html: `
+                    <div style="text-align:left; margin-bottom:5px; font-weight:bold;">1. ส่วนงาน/ทีมขาย:</div>
+                    <select id="exp-sale-code" class="swal2-input" style="margin:0 0 15px 0; width:100%;">
+                        <option value="Central">🏢 ส่วนกลาง (Central)</option>
+                        <option value="T">👤 ทีม T</option>
+                        <option value="K">👤 ทีม K</option>
+                        <option value="N">👤 ทีม N</option>
+                    </select>
+                    <div style="text-align:left; margin-bottom:5px; font-weight:bold;">2. ประเภทรายจ่าย:</div>
+                    <select id="exp-type" class="swal2-input" style="margin:0 0 15px 0; width:100%;">
+                        <option value="ค่าเน็ตโทรศัพท์">📡 ค่าเน็ตโทรศัพท์</option>
+                        <option value="เงินเดือนพนักงาน">👥 เงินเดือนพนักงาน</option>
+                        <option value="ค่าปลด iCloud">🔓 ค่าปลด iCloud</option>
+                        <option value="ค่าคอมมิชชั่น">💰 ค่าคอมมิชชั่น</option>
+                        <option value="อื่นๆ">📝 อื่นๆ</option>
+                    </select>
+                    <div style="text-align:left; margin-bottom:5px; font-weight:bold;">3. จำนวนเงิน (บาท):</div>
+                    <input id="exp-amount" type="number" class="swal2-input" style="margin:0 0 15px 0; width:100%;" placeholder="0.00">
+                    <div style="text-align:left; margin-bottom:5px; font-weight:bold;">4. หมายเหตุ (ระบุชื่อเซลล์/รายละเอียด):</div>
+                    <input id="exp-note" class="swal2-input" style="margin:0 0 15px 0; width:100%;" placeholder="เช่น ของนาย ก., ซื้ออุปกรณ์...">
+                `,
+                showCancelButton: true, confirmButtonText: 'บันทึก', cancelButtonText: 'ยกเลิก',
+                preConfirm: () => { return { sale_code: document.getElementById('exp-sale-code').value, type: document.getElementById('exp-type').value, amount: document.getElementById('exp-amount').value, note: document.getElementById('exp-note').value } }
             });
-        }
-        function handleSignatureUpload(i) { if(i.files[0]) { const r=new FileReader(); r.onload=e=>{ document.getElementById('out-sig-img').src=e.target.result; document.getElementById('out-sig-img').style.display='block'; }; r.readAsDataURL(i.files[0]); } }
-        function removeSignature() { document.getElementById('out-sig-img').style.display='none'; document.getElementById('in-sig-file').value=''; }
-        function sync(id) { document.getElementById('out-'+id).innerText=document.getElementById('in-'+id).value; }
-        function formatDate(d) { if(!d)return; document.getElementById('out-date').innerText=new Date(d).toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'}); }
-        function formatStartDate(d) { if(!d)return; document.getElementById('out-start-date').innerText=new Date(d).toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'}); }
-        function formatPhone(i) { if(!i.value)return; let v=i.value.replace(/\D/g,''); if(v.length===10) i.value=v.replace(/(\d{3})(\d{3})(\d{4})/,'$1 $2 $3'); document.getElementById('out-shop-phone').innerText=i.value; }
-        function formatMoney(i) {
-            let v=String(i.value).replace(/[^0-9.]/g,''), p=v.split('.'); p[0]=p[0].replace(/\B(?=(\d{3})+(?!\d))/g,","); i.value=p.join('.');
-            let o=i.value+(p.length===1||p[1]===""?".-":""); if(i.id==='in-amount') o+=" บาท ("+ThaiNumberToText(v)+")";
-            document.getElementById('out-'+i.id.replace('in-','')).innerText=o;
-        }
-        function ThaiNumberToText(n) {
-            n=parseFloat(String(n).replace(/,/g,'')); if(isNaN(n))return""; const t=['ศูนย์','หนึ่ง','สอง','สาม','สี่','ห้า','หก','เจ็ด','แปด','เก้า'], u=['','สิบ','ร้อย','พัน','หมื่น','แสน','ล้าน'];
-            let txt="", s=n.toFixed(2).split('.'), b=s[0], st=s[1];
-            if(parseInt(b)===0&&parseInt(st)===0)return"ศูนย์บาทถ้วน";
-            if(parseInt(b)>0){ for(let i=0;i<b.length;i++){ let d=b.charAt(i), l=b.length-i-1; if(d!=='0'){ if(l===0&&d==='1'&&b.length>1)txt+='เอ็ด'; else if(l===1&&d==='2')txt+='ยี่'; else if(l===1&&d==='1')txt+=''; else txt+=t[parseInt(d)]; txt+=u[l]; } } txt+='บาท'; }
-            if(parseInt(st)>0){ for(let i=0;i<st.length;i++){ let d=st.charAt(i), l=st.length-i-1; if(d!=='0'){ if(l===0&&d==='1'&&st.charAt(0)!=='0')txt+='เอ็ด'; else if(l===1&&d==='2')txt+='ยี่'; else if(l===1&&d==='1')txt+=''; else txt+=t[parseInt(d)]; txt+=(l===1)?'สิบ':''; } } txt+='สตางค์'; } else txt+='ถ้วน';
-            return txt;
-        }
-
-        function convertDateToThaiShort(dateStr) {
-            if (!dateStr) return "";
-            const parts = dateStr.split('-'); 
-            const y = parseInt(parts[0]);
-            const m = parseInt(parts[1]);
-            const d = parseInt(parts[2]);
-            const thaiMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
-            const bYear = (y + 543).toString().slice(-2); 
-            return `${d} ${thaiMonths[m - 1]} ${bYear}`;
-        }
-
-        function generateSecurityCode() { document.getElementById('in-security-ref').value="TRX"+Math.random().toString(36).substr(2,9).toUpperCase(); sync('security-ref'); }
-        function toggleType() { const t=document.getElementById('in-type').value; document.getElementById('box-contract').innerText=(t==='contract')?"✓":""; document.getElementById('box-installment').innerText=(t==='installment')?"✓":""; document.getElementById('group-installment').style.display=(t==='installment')?'block':'none'; }
-        function saveHistory(){}
-        function handleDateChange(d) {
-            formatDate(d); if(!d)return; const dt=new Date(d), b=(dt.getFullYear()+543).toString().substr(2,2)+(dt.getMonth()+1).toString().padStart(2,'0'), old=document.getElementById('in-book').value;
-            if(!isEditMode) {
-                 document.getElementById('in-book').value=b; document.getElementById('out-book').innerText=b; 
-                 if(old!==b) fetchNextBillNo();
+            if (formValues) {
+                if(!formValues.amount) return Swal.fire('Error', 'ระบุจำนวนเงิน', 'error');
+                Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                try { await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'add_expense', date: new Date().toISOString().split('T')[0], sale_code: formValues.sale_code, type: formValues.type, amount: formValues.amount, note: formValues.note, user: currentUser.name }) }); Swal.fire('สำเร็จ', 'บันทึกรายจ่ายเรียบร้อย', 'success'); } catch (e) { Swal.fire('Error', 'บันทึกไม่สำเร็จ', 'error'); }
             }
         }
-        window.onload=function(){
-            // --- 🟢 ตั้งชื่อบัญชีสำหรับตรวจสลิปอัตโนมัติ (แก้ไขชื่อที่นี่) ---
-            const myVerifyName = "ณัฐพล เคหาบาล,NATHAPON KEH"; 
-            document.getElementById('in-verify-name').value = myVerifyName;
-            // -------------------------------------------------------------
 
-            const t=new Date().toISOString().split('T')[0]; document.getElementById('in-date').value=t; handleDateChange(t); generateSecurityCode(); setTimeout(fetchNextBillNo,1000);
-            const u = new URLSearchParams(window.location.search); const r = u.get('ref');
-            if(r) { document.getElementById('import-contract-no').value=r; setTimeout(importFromContract,1500); }
+        // ... (ฟังก์ชันอื่นๆ manageUsers, addUser, deleteUser, doGlobalSearch, etc. คงเดิม) ...
+        async function manageUsers() {
+            if (!currentUser || currentUser.role !== 'admin') return Swal.fire('Error', 'Access Denied', 'error');
+            Swal.fire({ title: 'กำลังโหลดรายชื่อ...', didOpen: () => Swal.showLoading() });
+            try {
+                const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'get_users' }) });
+                const data = await res.json();
+                if (data.status !== 'success') throw new Error(data.message || 'Load failed');
+                let html = `<div style="text-align:left; max-height:300px; overflow-y:auto;"><table style="width:100%; font-size:14px; border-collapse:collapse;"><tr style="background:#eee; text-align:left;"><th style="padding:5px;">User</th><th style="padding:5px;">Name</th><th style="padding:5px;">Role</th><th style="padding:5px;">Action</th></tr>`;
+                data.users.forEach(u => { html += `<tr style="border-bottom:1px solid #ddd;"><td style="padding:5px;">${u.username}</td><td style="padding:5px;">${u.name}</td><td style="padding:5px;">${u.role}</td><td style="padding:5px;">${u.username !== 'admin' ? `<button onclick="deleteUser('${u.username}')" style="background:#ff6b6b; color:white; border:none; padding:2px 8px; border-radius:4px; cursor:pointer;">ลบ</button>` : '-'}</td></tr>`; });
+                html += `</table></div>`;
+                Swal.fire({ title: 'จัดการผู้ใช้งาน', html: html, width: '600px', showCloseButton: true, showConfirmButton: true, confirmButtonText: '+ เพิ่มผู้ใช้ใหม่', confirmButtonColor: '#27ae60' }).then((r) => { if (r.isConfirmed) addUser(); });
+            } catch (e) { Swal.fire({icon:'warning', title:'แจ้งเตือน', text:'ยังไม่พบฟังก์ชัน get_users ใน Script', confirmButtonText:'+ เพิ่มผู้ใช้ใหม่', showCancelButton:true}).then(r=>{ if(r.isConfirmed) addUser(); }); }
         }
+
+        async function addUser() {
+            const { value: formValues } = await Swal.fire({
+                title: 'เพิ่มผู้ใช้งานใหม่',
+                html: `
+                    <input id="new-user" class="swal2-input" placeholder="Username (ไอดี)" style="margin-bottom:10px;">
+                    <input id="new-pass" class="swal2-input" placeholder="Password (รหัสผ่าน)" style="margin-bottom:10px;">
+                    <input id="new-name" class="swal2-input" placeholder="Display Name (ชื่อเรียก)" style="margin-bottom:10px;">
+                    <select id="new-role" class="swal2-input" style="margin-bottom:15px;">
+                        <option value="user">User (พนักงาน)</option>
+                        <option value="admin">Admin (ผู้ดูแล)</option>
+                    </select>
+                    <div style="text-align:left; background:#f9f9f9; padding:10px; border-radius:8px; font-size:14px;">
+                        <div style="font-weight:bold; margin-bottom:5px; color:#555;">กำหนดสิทธิ์การเข้าถึง (Permissions):</div>
+                        <label style="cursor:pointer; display:block; margin-bottom:3px;"><input type="checkbox" class="perm-chk" value="dashboard"> 📊 ดู Dashboard (ยอดรวม/กำไร)</label>
+                        <label style="cursor:pointer; display:block; margin-bottom:3px;"><input type="checkbox" class="perm-chk" value="expense"> 💰 บันทึกรายจ่าย</label>
+                        <label style="cursor:pointer; display:block; margin-bottom:3px;"><input type="checkbox" class="perm-chk" value="shop_report"> 🏪 ดูรายงานโอนร้าน</label>
+                        <label style="cursor:pointer; display:block; margin-bottom:3px;"><input type="checkbox" class="perm-chk" value="closed"> ✅ ดูสัญญาปิดยอด/ครบงวด</label>
+                        <label style="cursor:pointer; display:block;"><input type="checkbox" class="perm-chk" value="manage_users"> 👥 จัดการผู้ใช้งาน (Admin)</label>
+                    </div>
+                `,
+                focusConfirm: false, showCancelButton: true, confirmButtonText: 'บันทึก', confirmButtonColor: '#27ae60',
+                preConfirm: () => { 
+                    const checkboxes = document.querySelectorAll('.perm-chk:checked');
+                    const selectedMenus = Array.from(checkboxes).map(cb => cb.value).join(',');
+                    return { username: document.getElementById('new-user').value, password: document.getElementById('new-pass').value, name: document.getElementById('new-name').value, role: document.getElementById('new-role').value, allowed_menus: selectedMenus } 
+                }
+            });
+            if (formValues) {
+                if(!formValues.username || !formValues.password) return Swal.fire('Error', 'กรุณากรอกข้อมูลให้ครบ', 'error');
+                Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading() });
+                try { await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'add_user', ...formValues }) }); Swal.fire('สำเร็จ', 'เพิ่มผู้ใช้เรียบร้อย', 'success').then(() => manageUsers()); } catch(e) { Swal.fire('Error', 'บันทึกไม่สำเร็จ', 'error'); }
+            }
+        }
+
+        async function deleteUser(username) {
+            Swal.fire({ title: `ลบผู้ใช้ ${username}?`, text: "จะไม่สามารถกู้คืนได้", icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'ยืนยันลบ' }).then(async (result) => {
+                if (result.isConfirmed) {
+                    Swal.fire({ title: 'กำลังลบ...', didOpen: () => Swal.showLoading() });
+                    try { await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'delete_user', username: username }) }); Swal.fire('Deleted!', '', 'success').then(() => manageUsers()); } catch(e) { Swal.fire('Error', 'ลบไม่สำเร็จ', 'error'); }
+                }
+            });
+        }
+
+        async function doGlobalSearch() {
+            const keyword = document.getElementById('searchInput').value.trim();
+            if(!keyword) return;
+            isSearchMode = true;
+            document.getElementById('statContainer').style.display = 'none';
+            document.getElementById('adminDashboard').style.display = 'none';
+            document.getElementById('polygonContainer').style.display = 'none';
+            document.getElementById('searchResultTitle').style.display = 'block';
+            document.getElementById('txtSearchKeyword').innerText = keyword;
+            const container = document.getElementById('contractList');
+            container.innerHTML = '<div class="loading-state">🔍 กำลังค้นหาข้อมูล...</div>';
+            try {
+                const response = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'search_tracking', keyword: keyword }) });
+                const data = await response.json();
+                if(data.contracts) { filteredData = data.contracts.map(c => { let amt = parseFloat(c.amount || 0) * (c.overdue_count > 1 ? c.overdue_count : 1); return { ...c, finalAmount: amt, hasPostpone: (c.postpone_date && c.postpone_date !== "-") }; }); } else { filteredData = []; }
+                renderDirectList(data.contracts);
+            } catch (e) { container.innerHTML = '<div class="loading-state" style="color:red">ไม่พบข้อมูล หรือ เกิดข้อผิดพลาด</div>'; }
+        }
+
+        function clearSearch() { document.getElementById('searchInput').value = ''; clearSearchUI(); loadData(); }
+        function clearSearchUI() { isSearchMode = false; document.getElementById('statContainer').style.display = 'grid'; document.getElementById('polygonContainer').style.display = 'grid'; document.getElementById('searchResultTitle').style.display = 'none'; document.getElementById('contractListHeading').style.display = 'none'; }
+        
+        function showClosedContracts() {
+            if(!currentTrackingData || currentTrackingData.length === 0) { alert('กำลังโหลดข้อมูล กรุณารอสักครู่...'); return; }
+            const closedList = currentTrackingData.filter(c => c.status === 'Paid' || c.status === 'Close');
+            filteredData = closedList.map(c => { let amt = parseFloat(c.amount || 0); return { ...c, finalAmount: amt, hasPostpone: false }; });
+            isSearchMode = true;
+            document.getElementById('statContainer').style.display = 'none';
+            document.getElementById('adminDashboard').style.display = 'none';
+            document.getElementById('polygonContainer').style.display = 'none';
+            document.getElementById('searchResultTitle').style.display = 'block';
+            document.getElementById('txtSearchKeyword').innerText = `รายการปิดสัญญา/ครบงวด (${closedList.length} รายการ)`;
+            renderDirectList(closedList);
+        }
+
+        function showAllContracts() {
+            if(!currentTrackingData || currentTrackingData.length === 0) { alert('กำลังโหลดข้อมูล...'); return; }
+            isSearchMode = true;
+            document.getElementById('statContainer').style.display = 'none';
+            document.getElementById('adminDashboard').style.display = 'none';
+            document.getElementById('polygonContainer').style.display = 'none';
+            document.getElementById('searchResultTitle').style.display = 'block';
+            document.getElementById('contractListHeading').style.display = 'none';
+            document.getElementById('txtSearchKeyword').innerText = `สัญญาทั้งหมด (${currentTrackingData.length} รายการ) - เรียงตามสถานะ`;
+            let sortedData = [...currentTrackingData].sort((a, b) => {
+                const getPriority = (c) => {
+                    const isClosed = (c.status === 'Paid' || c.status === 'Close');
+                    const isBadDebt = (c.overdue_count >= 3); 
+                    if (isBadDebt) return 4; if (isClosed) return 3; if (c.overdue_count > 0) return 2; return 1; 
+                }; return getPriority(a) - getPriority(b);
+            });
+            filteredData = sortedData.map(c => {
+                let amt = parseFloat(c.amount || 0) * (c.overdue_count > 1 ? c.overdue_count : 1);
+                let statusSuffix = "";
+                if (c.overdue_count >= 3) statusSuffix = " (หนี้เสีย)";
+                else if (c.status === 'Paid' || c.status === 'Close') statusSuffix = " (ปิดยอด)";
+                else if (c.overdue_count > 0) statusSuffix = ` (ค้าง ${c.overdue_count})`;
+                else statusSuffix = " (ปกติ)";
+                return { ...c, b_name: `${c.b_name} <span style="font-size:12px; font-weight:bold; color:${statusSuffix.includes('ปกติ')?'green':(statusSuffix.includes('ปิด')?'blue':'red')}">${statusSuffix}</span>`, finalAmount: amt, hasPostpone: (c.postpone_date && c.postpone_date !== "-" && c.postpone_date !== "") };
+            });
+            renderDirectList(filteredData);
+        }
+
+        function renderDashboard(data, selectedDate, forceShowAll) {
+            const container = document.getElementById('contractList'); 
+            const polyContainer = document.getElementById('polygonContainer');
+            globalSummary = data.summary || {};
+            container.innerHTML = ""; polyContainer.innerHTML = "";
+            document.getElementById('contractListHeading').style.display = 'none';
+            filteredData = [];
+            const hidden = JSON.parse(localStorage.getItem('hiddenContracts') || '[]').map(String);
+            const selectedDateThai = selectedDate ? formatDateToThai(selectedDate) : "";
+            let selectedYearTH = ""; let selectedMonthOnly = "";
+            if(selectedDate) { let d = new Date(selectedDate); selectedYearTH = d.getFullYear() + 543; selectedMonthOnly = ("0" + (d.getMonth() + 1)).slice(-2); }
+            const selectedMonthStr = `${selectedYearTH}-${selectedMonthOnly}`; 
+            contractGroups = { pending: [], normal: [], postpone: [], overdue: [] };
+            let strictDailyCollected = 0; let strictMonthlyCollected = 0;
+            const dashboard = document.getElementById('adminDashboard');
+            const boxCost = document.getElementById('boxCost');     
+            const cardDaily = document.getElementById('cardDaily'); 
+            dashboard.style.display = 'grid'; 
+            if (currentUser && currentUser.role === 'admin') {
+                boxCost.style.display = 'block';
+                dashboard.style.gridTemplateColumns = '1fr 1fr';
+                if(cardDaily) cardDaily.style.display = 'block';
+            } else {
+                boxCost.style.display = 'none';
+                dashboard.style.gridTemplateColumns = '1fr';
+                if(cardDaily) cardDaily.style.display = 'none';
+            }
+            if (data.contracts) {
+                data.contracts.forEach(c => {
+                    const amount = parseFloat(c.amount || 0);
+                    const isPaid = ['Paid', 'Close', 'รอปิดยอด'].includes(c.status);
+                    const isPostponedToToday = (c.postpone_date === selectedDateThai);
+                    const isDueToday = (c.due_date === selectedDateThai);
+                    const hasPostpone = (c.postpone_date && c.postpone_date !== "-" && c.postpone_date !== "");
+                    const isPendingStatus = ['Pending_Approve', 'รอตรวจสอบ', 'รอปิดยอด'].includes(c.status);
+                    let isTargetToday = (isPostponedToToday) || (isDueToday && !hasPostpone);
+                    if (isTargetToday && isPaid) strictDailyCollected += amount;
+                    if (c.due_date) { const parts = c.due_date.split('/'); if(parts.length === 3) { const cMonthStr = `${parts[2]}-${parts[1]}`; if (cMonthStr === selectedMonthStr && isPaid) strictMonthlyCollected += amount; } }
+                    if (hidden.includes(String(c.c_no))) return;
+                    if (isPaid) return; 
+                    let amt = parseFloat(c.amount) * (c.overdue_count > 1 ? c.overdue_count : 1);
+                    if (c.original_due_date !== selectedDateThai && c.postpone_date === selectedDateThai) { c.worksheetStatus = `เลื่อนมาจาก ${c.original_due_date}`; } else { if (isPendingStatus) { c.worksheetStatus = c.status === 'รอปิดยอด' ? 'รอปิดยอด' : 'รอตรวจสอบ'; } else { c.worksheetStatus = c.overdue_count > 0 ? 'ค้างชำระ' : 'ปกติ'; } }
+                    let item = { ...c, finalAmount: amt, hasPostpone: hasPostpone };
+                    filteredData.push(item);
+                    if (isPendingStatus) { if (currentUser.role === 'admin' || !isPendingStatus) contractGroups.pending.push(item); } 
+                    else if (isPostponedToToday) { contractGroups.postpone.push(item); }
+                    else if (c.overdue_count > 0) { contractGroups.overdue.push(item); } 
+                    else if (isTargetToday) { contractGroups.normal.push(item); }
+                });
+            }
+            updateCharts(0, strictDailyCollected, 0, strictMonthlyCollected);
+            if (data.summary && data.summary.commission !== undefined) { const commEl = document.getElementById('txtCommission'); if(commEl) commEl.innerText = (data.summary.commission || 0).toLocaleString(); }
+            if (contractGroups.pending.length > 0 && currentUser.role === 'admin') { polyContainer.innerHTML += createPolygonHtml('pending', 'รอตรวจสอบ', contractGroups.pending.length, 'poly-bg-pending', 'fas fa-clock'); }
+            polyContainer.innerHTML += createPolygonHtml('normal', 'ปกติ (วันนี้)', contractGroups.normal.length, 'poly-bg-normal', 'fas fa-calendar-check');
+            polyContainer.innerHTML += createPolygonHtml('postpone', 'เลื่อนนัดมาวันนี้', contractGroups.postpone.length, 'poly-bg-postpone', 'fas fa-history');
+            polyContainer.innerHTML += createPolygonHtml('overdue', 'เกินกำหนด', contractGroups.overdue.length, 'poly-bg-overdue', 'fas fa-exclamation-circle');
+            container.innerHTML = `<div class="loading-state" style="padding:20px;">👈 คลิกที่กล่องสถานะด้านบนเพื่อดูรายการ</div>`;
+        }
+
+        function createPolygonHtml(groupKey, title, count, bgClass, iconClass) { return `<div class="polygon-card ${bgClass}" onclick="showGroupList('${groupKey}', '${title}')"><i class="${iconClass} poly-icon"></i><div class="poly-count">${count}</div><div class="poly-title">${title}</div></div>`; }
+        function showGroupList(groupKey, title) {
+            const list = contractGroups[groupKey];
+            const container = document.getElementById('contractList');
+            const heading = document.getElementById('contractListHeading');
+            heading.style.display = 'block';
+            heading.innerText = `▼ รายการ: ${title} (${list.length})`;
+            renderDirectList(list);
+            setTimeout(() => { heading.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
+        }
+        function renderDirectList(items) {
+            const container = document.getElementById('contractList');
+            if (!items || items.length === 0) { container.innerHTML = '<div class="loading-state">ไม่พบรายการ</div>'; return; }
+            container.innerHTML = items.map(c => createCardHtml(c)).join('');
+        }
+
+        function createCardHtml(c) {
+            if (c.finalAmount === undefined) { c.finalAmount = parseFloat(c.amount || 0) * (c.overdue_count > 1 ? c.overdue_count : 1); }
+            if (c.hasPostpone === undefined) { c.hasPostpone = (c.postpone_date && c.postpone_date !== "-" && c.postpone_date !== ""); }
+            const isAdmin = currentUser.role === 'admin'; 
+            let cardClass = isSearchMode ? "card-search-result" : "card-normal"; 
+            let statusHtml = `<span class="status-text text-green"><i class="fas fa-check-circle"></i> ปกติ</span>`;
+            let hasPaymentNote = c.last_note && c.last_note.includes('แจ้งชำระ');
+            const isClosed = (c.status === 'Paid' || c.status === 'Close');
+            if (c.status === 'Pending_Approve' || c.status === 'รอตรวจสอบ') { 
+                cardClass = "card-pending-approve"; 
+                if(isAdmin) statusHtml = `<span class="status-text text-orange" onclick="adminApprove('${c.c_no}', ${c.row_index}, '${c.request_date}', '${c.last_note || ''}', 'postpone')">⏳ รอตรวจสอบ (กด)</span>`; 
+                else statusHtml = `<span class="status-text text-orange">⏳ รอตรวจสอบ</span>`; 
+            } 
+            else if (c.status === 'รอปิดยอด') { 
+                cardClass = "card-pending-approve"; 
+                if(isAdmin) statusHtml = `<span class="status-text text-red" style="cursor:pointer;" onclick="adminApprove('${c.c_no}', ${c.row_index}, '-', '${c.last_note || ''}', 'close')">🏁 รอปิดยอด (กดอนุมัติ)</span>`; 
+                else statusHtml = `<span class="status-text text-red">🏁 รออนุมัติปิดยอด</span>`; 
+            }
+            else if (c.hasPostpone) { cardClass = "card-postpone"; statusHtml = `<span class="status-text text-purple">⏰ เลื่อน: ${c.postpone_date}</span>`; } 
+            else if (c.overdue_count > 0) { cardClass = "card-overdue"; statusHtml = `<span class="status-text text-red">❗ ค้าง ${c.overdue_count} งวด</span>`; }
+            else if (isClosed) { statusHtml = `<span class="status-text text-green">✅ ปิดบัญชีแล้ว (${c.last_payment_date})</span>`; }
+            if (hasPaymentNote) { let noteContent = linkify(c.last_note); statusHtml += `<div style="font-size:11px; color:#4361ee; background:#eef2ff; padding:6px; border-radius:4px; margin-top:4px; border:1px solid #dce6ff; white-space:normal; word-break:break-all;">💰 ${noteContent}</div>`; }
+            let financialHtml = '';
+            let profitClass = c.current_profit >= 0 ? 'color:#27ae60;' : 'color:#c0392b;';
+            let profitIcon = c.current_profit >= 0 ? '📈 กำไร' : '📉 ยังไม่คืนทุน';
+            let progressPercent = 0;
+            if (c.product_cost > 0) { progressPercent = (c.total_revenue / c.product_cost) * 100; } else { progressPercent = 100; }
+            if (progressPercent > 100) progressPercent = 100;
+            financialHtml = `
+                <div style="background:#f8f9fa; padding:8px; margin-top:10px; border-radius:8px; font-size:12px; border:1px solid #eee;">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                        <span style="color:#7f8c8d;">ต้นทุน: ${parseInt(c.product_cost || 0).toLocaleString()}</span>
+                        <span style="font-weight:bold; ${profitClass}">${profitIcon} ${parseInt(c.current_profit || 0).toLocaleString()}</span>
+                    </div>
+                    <div style="width:100%; background:#e0e0e0; height:6px; border-radius:3px; overflow:hidden;">
+                        <div style="width:${progressPercent}%; background:${c.current_profit >= 0 ? '#27ae60' : '#f39c12'}; height:100%;"></div>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; font-size:10px; color:#95a5a6; margin-top:2px;">
+                        <span>รับจริง: ${parseInt(c.total_revenue || 0).toLocaleString()}</span>
+                        <span>ROI: ${c.roi_percent || 0}%</span>
+                    </div>
+                </div>`;
+            let menuButton = isAdmin ? `<button class="btn-kebab" style="margin-left:5px;" onclick="openManageMenu(${c.row_index},'${c.b_name}','${c.c_no}')">⋮</button>` : '';
+            let actionButtonsHtml = '', gridClass = '';
+            const hasExtraInfo = (c.contact_image && c.contact_image !== "" && c.contact_image !== "-");
+            const infoBtn = hasExtraInfo ? `<button class="btn-act btn-act-info" onclick="openContactImage('${c.c_no}')"><i class="fas fa-address-card"></i> ข้อมูลเพิ่มเติม</button>` : `<button class="btn-act btn-disabled" disabled><i class="fas fa-address-card"></i> ข้อมูลเพิ่มเติม</button>`;
+            const contractBtn = `<button class="btn-act btn-act-contract" onclick="openContractPopup('${c.c_no}')"><i class="fas fa-file-contract"></i> สัญญา</button>`;
+            if (isClosed) {
+                gridClass = 'grid-closed-actions';
+                actionButtonsHtml = `${infoBtn}${contractBtn}`;
+            } else {
+                if (isAdmin) {
+                    gridClass = 'grid-admin-actions';
+                    actionButtonsHtml = `<a href="tel:${c.b_mobile}" class="btn-act btn-act-call"><i class="fas fa-phone"></i> โทร</a>${infoBtn}${contractBtn}<button class="btn-act btn-act-pay" onclick="openPay('${c.c_no}')"><i class="fas fa-wallet"></i> จ่าย</button><button class="btn-act btn-act-postpone" style="grid-column: 1 / -1;" onclick="openPostpone(${c.row_index},'${c.b_name}', '${c.postpone_date||''}')"><i class="fas fa-calendar-check"></i> นัดหมาย</button>`;
+                } else {
+                    gridClass = 'grid-user-actions';
+                    const isPending = (c.status === 'Pending_Approve' || c.status === 'รอตรวจสอบ' || c.status === 'รอปิดยอด');
+                    const payBtn = isPending ? `<button class="user-checkbox-btn btn-disabled" disabled><i class="fas fa-clock"></i> รออนุมัติ</button>` : `<button class="user-checkbox-btn" onclick="userReqPay('${c.c_no}')"><i class="far fa-check-square"></i> แจ้งชำระ</button>`;
+                    const closeBtn = isPending ? `<button class="user-checkbox-btn btn-disabled" disabled><i class="fas fa-flag-checkered"></i> ปิดยอด</button>` : `<button class="user-checkbox-btn" onclick="userReqClose('${c.c_no}')" style="color:#c0392b;"><i class="fas fa-flag-checkered"></i> ขอปิดยอด</button>`;
+                    const followBtn = isPending ? `<button class="user-checkbox-btn btn-disabled" disabled><i class="fas fa-bullhorn"></i> ติดตาม</button>` : `<button class="user-checkbox-btn" onclick="userReqFollow('${c.c_no}')" style="color:#d35400;"><i class="fas fa-bullhorn"></i> ติดตาม</button>`;
+                    actionButtonsHtml = `<a href="tel:${c.b_mobile}" class="btn-act btn-act-call"><i class="fas fa-phone"></i> โทร</a>${infoBtn}${contractBtn}${payBtn}<button class="user-checkbox-btn" onclick="userReqPostpone('${c.c_no}')"><i class="far fa-clock"></i> เลื่อนนัด</button>${followBtn}${closeBtn}<button class="user-checkbox-btn" style="grid-column: 1 / -1;" onclick="userAddNote('${c.c_no}')"><i class="fas fa-pen"></i> หมายเหตุ</button>`;
+                }
+            }
+            return `<div class="cust-card ${cardClass}"><div class="cust-header"><div class="cust-info"><h3>${c.b_name}</h3><span class="cust-id">#${c.c_no}</span></div><div class="status-badge">${statusHtml}</div>${menuButton}</div><div class="cust-body"><div><div class="contact-line"><i class="fas fa-phone"></i> ${c.b_mobile}</div><div class="contact-line">งวดที่ ${c.installment_no}</div></div><div style="text-align:right"><span style="font-size:10px; color:#777;">ยอดชำระ</span><div class="amount-val">฿${c.finalAmount.toLocaleString()}</div></div></div> ${financialHtml} <div class="cust-actions ${gridClass}">${actionButtonsHtml}</div></div>`;
+        }
+
+        async function userReqPay(cNo) {
+            const { value: formValues } = await Swal.fire({ title: 'ยืนยันแจ้งชำระเงิน', html: `<div style="text-align:left; font-size:14px; margin-bottom:5px;">แนบสลิปการโอนเงิน (ถ้ามี):</div><input type="file" id="swal-input-file" class="swal2-input" accept="image/*" multiple style="width:80%; margin:0 auto; display:block;"><input type="text" id="swal-input-note" class="swal2-input" placeholder="ระบุเพิ่มเติม (ถ้ามี)" style="margin-top:10px;">`, icon: 'info', showCancelButton: true, confirmButtonText: '✅ ยืนยันส่งข้อมูล', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#27ae60', preConfirm: () => { return { files: document.getElementById('swal-input-file').files, note: document.getElementById('swal-input-note').value }; } });
+            if (formValues) {
+                Swal.fire({ title: 'กำลังบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                try { let slips = []; if (formValues.files.length > 0) { for(let i=0; i<formValues.files.length; i++){ const file = formValues.files[i]; const base64Str = await toBase64(file); slips.push({ image: base64Str, name: `slip_${cNo}_${new Date().getTime()}_${i}.jpg`, mime: file.type }); } } await sendUserRequest('request_pay', cNo, { note: 'แจ้งชำระเงิน: ' + (formValues.note || '-'), slips: slips }); } catch (error) { Swal.fire('Error', 'เกิดข้อผิดพลาดในการเตรียมไฟล์', 'error'); }
+            }
+        }
+
+        async function userReqClose(cNo) {
+            const { value: formValues } = await Swal.fire({ title: 'แจ้งขอปิดยอดบัญชี', html: `<p style="font-size:14px; color:#c0392b; margin-bottom:10px;">ต้องการแจ้งปิดยอดสัญญา ${cNo}</p><div style="text-align:left; font-size:14px; margin-bottom:5px;">แนบสลิปยอดปิดบัญชี (จำเป็น):</div><input type="file" id="swal-input-file-close" class="swal2-input" accept="image/*" style="width:80%; margin:0 auto; display:block;"><input type="text" id="swal-input-note-close" class="swal2-input" placeholder="หมายเหตุเพิ่มเติม" style="margin-top:10px;">`, icon: 'warning', showCancelButton: true, confirmButtonText: '✅ ยืนยันขอปิดยอด', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#e74c3c', preConfirm: () => { const f = document.getElementById('swal-input-file-close'); if (f.files.length === 0) { Swal.showValidationMessage('กรุณาแนบสลิปเพื่อยืนยันการปิดยอด'); return false; } return { file: f.files[0], note: document.getElementById('swal-input-note-close').value }; } });
+            if (formValues) {
+                Swal.fire({ title: 'กำลังอัปโหลด...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                try { const base64Str = await toBase64(formValues.file); await sendUserRequest('request_close', cNo, { note: 'ขอปิดยอดบัญชี: ' + (formValues.note || '-'), slip_image: base64Str, slip_name: `close_${cNo}_${new Date().getTime()}.jpg`, slip_mime: formValues.file.type }); } catch (e) { Swal.fire('Error', 'อัปโหลดไม่สำเร็จ', 'error'); }
+            }
+        }
+
+        async function userReqPostpone(cNo) { Swal.fire({title:'ขอเลื่อนนัด', input:'date'}).then(r=>{if(r.value) sendUserRequest('request_postpone', cNo, {new_date:r.value});}); }
+        async function userAddNote(cNo) { Swal.fire({input:'text', title:'บันทึก'}).then(r=>{if(r.value) sendUserRequest('add_daily_note', cNo, {note:r.value});}); }
+        async function sendUserRequest(act, cNo, pl) { Swal.showLoading(); try { await fetch(API_URL, { method:'POST', body:JSON.stringify({ action:'user_action_log', sub_action:act, c_no:cNo, user:currentUser.username, ...pl }) }); Swal.fire({icon:'success', title:'บันทึกสำเร็จ', timer:1500, showConfirmButton:false}); loadData(); } catch(e) { Swal.fire('Error', 'ส่งข้อมูลล้มเหลว', 'error'); } }
+
+        async function adminApprove(cNo, rowIndex, reqDate, details, type) {
+            let title = type === 'close' ? 'อนุมัติปิดยอดบัญชี (Close)' : 'อนุมัติรายการ';
+            let confirmBtn = type === 'close' ? '🏁 ยืนยันปิดยอด' : '✅ ยืนยันอนุมัติ';
+            let actionType = type === 'close' ? 'close_account' : 'approve_contract'; 
+            Swal.fire({ title: title, html: `<p>สัญญา #${cNo}</p><h2 style="color:#4361ee;">${reqDate !== '-' ? reqDate : ''}</h2><p>${details}</p>`, icon: 'question', showCancelButton: true, showDenyButton: true, denyButtonText: '❌ ตีกลับ (ให้แก้ไข)', confirmButtonText: confirmBtn, cancelButtonText: 'ยกเลิก' 
+            }).then(async (result) => { 
+                if (result.isConfirmed) { 
+                    Swal.showLoading(); 
+                    if (type === 'postpone' && reqDate && reqDate !== '-') { await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'postpone', row_index: rowIndex, new_date: reqDate }) }); } 
+                    await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: actionType, row_index: rowIndex }) }); 
+                    Swal.fire({ title: '✅ อนุมัติสำเร็จ!', text: "ต้องการออกใบเสร็จรับเงินเดี๋ยวนี้เลยหรือไม่?", icon: 'success', showCancelButton: true, confirmButtonText: '🖨️ ไปหน้าออกใบเสร็จ', cancelButtonText: 'ปิด', confirmButtonColor: '#2c3e50' }).then((r) => { if (r.isConfirmed) { window.open(`https://kamkywork.github.io/kamkybill-app/?ref=${encodeURIComponent(cNo)}`, '_blank'); } loadData(); });
+                } else if (result.isDenied) {
+                    const { value: reason } = await Swal.fire({ title: 'ระบุเหตุผลที่ตีกลับ', input: 'text', inputPlaceholder: 'เช่น สลิปไม่ชัด, ยอดไม่ตรง', showCancelButton: true });
+                    if (reason) { Swal.showLoading(); await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'reject_request', row_index: rowIndex, reason: reason }) }); Swal.fire('บันทึกการตีกลับแล้ว', '', 'success').then(() => loadData()); }
+                }
+            });
+        }
+
+        function openPostpone(idx, name, currentVal) { Swal.fire({ title: 'จัดการนัดหมาย', html: `<div style="margin-bottom:10px;">เดิม: <b>${currentVal || '-'}</b></div><input type="date" id="swal-date" class="swal2-input">`, showDenyButton: true, showCancelButton: true, confirmButtonText: 'บันทึก', denyButtonText: 'ลบนัดหมาย', cancelButtonText: 'ปิด' }).then(r => { if (r.isConfirmed) executeAction({ action: 'postpone', row_index: idx, new_date: document.getElementById('swal-date').value }); else if (r.isDenied) executeAction({ action: 'postpone', row_index: idx, new_date: '' }); }); }
+        
+        async function openContractPopup(cNo) { Swal.fire({ title: 'กำลังโหลด...', allowOutsideClick: false, didOpen: () => Swal.showLoading() }); try { const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'get_contract_image', c_no: String(cNo) }) }); const d = await res.json(); if(d.status === 'success') { let fileId = ""; if(d.url.includes("id=")) { fileId = d.url.split('id=')[1].split('&')[0]; } if(fileId) { let previewUrl = `https://drive.google.com/file/d/${fileId}/preview`; Swal.fire({ html: `<div style="position:relative; padding-bottom:10px;"><iframe src="${previewUrl}" width="100%" height="450px" style="border:none; border-radius:8px;"></iframe></div>`, width: '600px', showCloseButton: true, confirmButtonText: 'ปิด', footer: `<a href="${d.url}" target="_blank" style="color:#4361ee; font-weight:bold; text-decoration:underline;">หากรูปไม่ขึ้น คลิกที่นี่เพื่อเปิดแอป Drive</a>` }); } else { Swal.fire({ imageUrl: d.url, width: '95%', confirmButtonText: 'ปิด' }); } } else { Swal.fire({ icon: 'warning', title: 'ไม่พบไฟล์รูปสัญญา' }); } } catch(e) { Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาดในการโหลด' }); } }
+        async function openContactImage(cNo) { Swal.showLoading(); try { const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'get_contract_image', c_no: cNo, type: 'contact_aw' }) }); const d = await res.json(); if(d.status==='success') { let fileId = ""; if(d.url.includes("id=")) { fileId = d.url.split('id=')[1].split('&')[0]; } if(fileId) { let previewUrl = `https://drive.google.com/file/d/${fileId}/preview`; Swal.fire({ html: `<iframe src="${previewUrl}" width="100%" height="450px" style="border:none; border-radius:8px;"></iframe>`, width: '600px', showCloseButton: true, confirmButtonText: 'ปิด' }); } else { Swal.fire({ imageUrl: d.url, width: '95%', confirmButtonText: 'ปิด' }); } } else Swal.fire({ icon: 'warning', title: 'ไม่พบข้อมูลเพิ่มเติม (AW)' }); } catch(e) { Swal.fire('Error', 'ผิดพลาด'); } }
+        function formatDateToThai(dateString) { if(!dateString) return ""; const p = dateString.split('-'); let year = parseInt(p[0]) + 543; return `${p[2]}/${p[1]}/${year}`; }
+        
+        function updateCharts(dailyTarget, dailyCollected, monthlyTarget, monthlyCollected) { 
+            if (globalSummary) {
+                if (globalSummary.daily_collected !== undefined) { dailyCollected = globalSummary.daily_collected; }
+                if (globalSummary.commission_breakdown && globalSummary.commission_breakdown.revenue !== undefined) { monthlyCollected = globalSummary.commission_breakdown.revenue; }
+                document.getElementById('txtTodayCollected').innerText = dailyCollected.toLocaleString(); 
+                document.getElementById('txtMonthCollected').innerText = monthlyCollected.toLocaleString();
+                if (document.getElementById('txtTotalCost')) { let cost = globalSummary.total_cost || 0; document.getElementById('txtTotalCost').innerText = cost.toLocaleString(); }
+                if (document.getElementById('txtNetProfit')) { let profit = globalSummary.net_profit || 0; let profitEl = document.getElementById('txtNetProfit'); profitEl.innerText = profit.toLocaleString(); if (profit < 0) { profitEl.style.color = "#e74c3c"; } else { profitEl.style.color = "#27ae60"; } }
+            }
+            if (globalSummary && globalSummary.commission !== undefined) { const commEl = document.getElementById('txtCommission'); if(commEl) { commEl.innerText = (globalSummary.commission || 0).toLocaleString(); const oldDetail = document.getElementById('commDetailBox'); if(oldDetail) oldDetail.remove(); } }
+        }
+
+        function exportToExcel() { if (!filteredData.length) return Swal.fire('ไม่มีข้อมูล', 'กรุณาค้นหาหรือเลือกวันที่ก่อน', 'warning'); let csv = "data:text/csv;charset=utf-8,\uFEFFลำดับ,เลขสัญญา,ชื่อ,เบอร์,งวด,ยอด,สถานะ\n"; filteredData.forEach((i, idx) => csv += `${idx+1},"${i.c_no}","${i.b_name}","${i.b_mobile}",${i.installment_no},${i.finalAmount},"${i.status}"\n`); const link = document.createElement("a"); link.href = encodeURI(csv); link.download = "Report.csv"; link.click(); }
+        function openPay(c_no) { window.open(`https://kamkywork.github.io/sale_bill/?ref=${c_no}`, '_blank'); }
+        async function openManageMenu(idx, name, c_no) { const { value: action } = await Swal.fire({ title: name, input: 'select', inputOptions: { 'cancel_contract': '❌ ยกเลิกสัญญา', 'close_account': '✅ ปิดยอด' }, showCancelButton: true }); if(action){ Swal.fire({title:'ยืนยัน?',showCancelButton:true}).then(r=>{if(r.isConfirmed) executeAction({action,c_no,row_index:idx})}); } }
+        async function executeAction(p) { Swal.fire({ title: 'บันทึก...', didOpen: () => Swal.showLoading() }); try { await fetch(API_URL, { method: 'POST', body: JSON.stringify(p) }); Swal.fire({ icon: 'success', title: 'สำเร็จ', timer: 1000, showConfirmButton: false }); loadData(); } catch (e) { Swal.fire('Error', 'ผิดพลาด', 'error'); } }
+        function userProfile() { Swal.fire({ title: 'ข้อมูลผู้ใช้', html: `<b>${currentUser.name}</b><br>สถานะ: ${currentUser.role}`, showDenyButton: true, confirmButtonText: 'เปลี่ยนรหัสผ่าน', denyButtonText: 'ปิด' }).then(r => { if(r.isConfirmed) changePass(); }); }
+        async function changePass() { const { value: p } = await Swal.fire({ title: 'ตั้งรหัสใหม่', input: 'password' }); if(p) { await fetch(API_URL, { method:'POST', body:JSON.stringify({action:'change_password', username:currentUser.username, new_pass:p}) }); Swal.fire('สำเร็จ'); } }
+
+        function printReport() {
+            if (!filteredData || filteredData.length === 0) { Swal.fire('ไม่มีข้อมูล', 'ไม่พบรายการที่จะพิมพ์', 'warning'); return; }
+            const now = new Date(); const dateStr = `${now.getDate()}/${now.getMonth()+1}/${now.getFullYear()+543}`; const timeStr = `${now.getHours()}:${now.getMinutes().toString().padStart(2,'0')}`;
+            let tableRows = filteredData.map((item, index) => { let statusColor = item.overdue_count > 0 ? 'color:red;' : 'color:green;'; let statusText = item.status; if(item.overdue_count > 0) statusText = `ค้าง ${item.overdue_count} งวด`; else if(item.status === 'Paid' || item.status === 'Close') statusText = 'ปิดยอดแล้ว'; else if(item.status === 'Pending_Approve') statusText = 'รอตรวจสอบ'; return `<tr><td style="text-align:center;">${index + 1}</td><td>${item.c_no}</td><td>${item.b_name} <br> <span style="font-size:10px; color:#666;">${item.b_mobile}</span></td><td style="text-align:right;">${item.finalAmount.toLocaleString()}</td><td style="text-align:center; ${statusColor}">${statusText}</td><td>${item.last_note || '-'}</td></tr>`; }).join('');
+            const htmlContent = `<html><head><title>รายงานติดตามหนี้</title><link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600&display=swap" rel="stylesheet"><style> body { font-family: 'Sarabun', sans-serif; padding: 20px; } h2 { text-align: center; margin-bottom: 5px; } .meta { text-align: center; font-size: 12px; color: #555; margin-bottom: 20px; } table { width: 100%; border-collapse: collapse; font-size: 12px; } th { background: #eee; padding: 6px; border: 1px solid #ccc; } td { padding: 6px; border: 1px solid #ccc; vertical-align: middle; } @media print { button { display: none; } } </style></head><body><h2>รายการติดตามหนี้</h2><div class="meta">พิมพ์เมื่อ: ${dateStr} เวลา ${timeStr} | จำนวน: ${filteredData.length} รายการ</div><table><thead><tr><th width="5%">#</th><th width="15%">เลขสัญญา</th><th width="25%">ชื่อลูกค้า</th><th width="15%">ยอดชำระ</th><th width="15%">สถานะ</th><th width="25%">หมายเหตุ</th></tr></thead><tbody>${tableRows}</tbody></table><script>window.onload = function() { window.print(); }<\/script></body></html>`;
+            let win = window.open('', '_blank'); win.document.write(htmlContent); win.document.close();
+        }
+		
+		function showShopTransferReport() {
+            const selectedDate = document.getElementById('filterDate').value; 
+            const dailyContracts = currentTrackingData.filter(c => { let targetDateThai = formatDateToThai(selectedDate); return c.c_date === targetDateThai; });
+            if (dailyContracts.length === 0) { Swal.fire('ไม่มีข้อมูล', `ไม่พบการทำสัญญาใหม่ในวันที่ ${formatDateToThai(selectedDate)}`, 'info'); return; }
+            let totalTransfer = 0;
+            let tableRows = dailyContracts.map((c, index) => {
+                let transferAmt = parseFloat(String(c.shop_transfer_amount || 0).replace(/,/g,'')); totalTransfer += transferAmt;
+                return `<tr style="border-bottom:1px solid #ddd;"><td style="padding:8px;">${index + 1}</td><td style="padding:8px; font-weight:bold;">${c.shop_name || '-'}</td><td style="padding:8px; font-size:12px;">${c.shop_bank || '-'} <br><span style="color:#666;">(สัญญา: ${c.c_no})</span></td><td style="padding:8px; text-align:right; font-weight:bold; color:#c0392b;">${transferAmt.toLocaleString()}</td></tr>`;
+            }).join('');
+            Swal.fire({
+                title: `สรุปยอดโอนคืนร้านค้า`,
+                html: `<div style="text-align:center; margin-bottom:10px; color:#555;">ประจำวันที่ ${formatDateToThai(selectedDate)}</div><div style="max-height:300px; overflow-y:auto; border:1px solid #eee;"><table style="width:100%; border-collapse:collapse; font-size:14px; text-align:left;"><thead style="background:#2c3e50; color:white;"><tr><th style="padding:8px;">#</th><th style="padding:8px;">ร้านค้า</th><th style="padding:8px;">ธนาคาร/สัญญา</th><th style="padding:8px; text-align:right;">ยอดโอน</th></tr></thead><tbody>${tableRows}</tbody><tfoot style="background:#f9f9f9; font-weight:bold;"><tr><td colspan="3" style="padding:10px; text-align:right;">ยอดรวมทั้งสิ้น:</td><td style="padding:10px; text-align:right; color:#c0392b; font-size:16px;">${totalTransfer.toLocaleString()}</td></tr></tfoot></table></div>`,
+                width: '600px', confirmButtonText: 'ปิดหน้าต่าง', showCloseButton: true, footer: '<button onclick="printShopReport()" style="border:none; background:none; color:blue; cursor:pointer; text-decoration:underline;">🖨️ พิมพ์รายงานนี้</button>'
+            });
+        }
+
+        async function userReqFollow(cNo) {
+            const { value: actionType } = await Swal.fire({
+                title: 'เลือกวิธีติดตาม', input: 'radio',
+                inputOptions: { 'visit': '1. 🏠 ติดตามที่พักอาศัย', 'letter': '2. ✉️ ส่งจดหมายทวงถาม', 'bad_debt': '3. ☠️ แจ้งหนี้เสีย (Blacklist)' },
+                inputValidator: (value) => { if (!value) return 'กรุณาเลือกหัวข้อการติดตาม'; },
+                showCancelButton: true, confirmButtonText: 'ถัดไป', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#e67e22'
+            });
+            if (actionType) {
+                let payload = {};
+                if (actionType === 'letter') {
+                    const { value: letterDate } = await Swal.fire({ title: 'ระบุวันที่ส่งจดหมาย', input: 'date', inputLabel: 'วันที่ดำเนินการส่งจดหมายจริง', showCancelButton: true, confirmButtonText: 'ยืนยันส่งอนุมัติ', confirmButtonColor: '#27ae60', preConfirm: (date) => { if (!date) Swal.showValidationMessage('กรุณาเลือกวันที่'); return date; } });
+                    if (!letterDate) return; 
+                    payload = { sub_action: 'req_letter', date: letterDate };
+                } 
+                else if (actionType === 'visit') {
+                    const { isConfirmed } = await Swal.fire({ title: 'ยืนยันแจ้งติดตามที่พัก?', text: 'ระบบจะส่งคำขอไปยัง Admin เพื่อบันทึกสถานะ', icon: 'question', showCancelButton: true, confirmButtonText: 'ยืนยัน', confirmButtonColor: '#27ae60' });
+                    if (!isConfirmed) return;
+                    payload = { sub_action: 'req_visit' };
+                }
+                else if (actionType === 'bad_debt') {
+                    const { isConfirmed } = await Swal.fire({ title: 'แจ้งหนี้เสีย (Blacklist)?', text: 'ใช้ในกรณีที่ติดตามไม่ได้แล้ว เพื่อให้ Admin พิจารณาตัดเป็นหนี้เสีย', icon: 'warning', showCancelButton: true, confirmButtonText: 'ยืนยันแจ้งหนี้เสีย', confirmButtonColor: '#c0392b' });
+                    if (!isConfirmed) return;
+                    payload = { sub_action: 'req_bad_debt' };
+                }
+                if (payload.sub_action) { await sendUserRequest(payload.sub_action, cNo, { note: payload.date ? `วันที่ส่ง: ${payload.date}` : '-' }); }
+            }
+        }
+    </script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('./sw.js').then(function(registration) {
+            console.log('ServiceWorker registration successful with scope: ', registration.scope);
+          }, function(err) {
+            console.log('ServiceWorker registration failed: ', err);
+          });
+        });
+      }
     </script>
 </body>
 </html>
