@@ -149,6 +149,9 @@
             <button id="btnShopReport" class="btn-pill" style="background: linear-gradient(135deg, #11998e, #38ef7d); display:none;" onclick="showShopTransferReport()">
                 <i class="fas fa-money-bill-wave"></i> ยอดโอนร้าน
             </button>
+            <button id="btnBreakEven" class="btn-pill" style="background: linear-gradient(135deg, #8e44ad, #9b59b6); display:none;" onclick="showBreakEvenReport()">
+                <i class="fas fa-chart-line"></i> รายงานจุดคุ้มทุน
+            </button>
             <button id="btnPrint" class="btn-icon btn-print" onclick="printReport()"><i class="fas fa-print"></i></button>
             <button id="btnExcel" class="btn-icon btn-excel" onclick="exportToExcel()"><i class="fas fa-file-excel"></i></button>
             <button id="btnReset" class="btn-icon btn-reset" onclick="resetHidden()"><i class="fas fa-eye"></i></button>
@@ -196,8 +199,8 @@
         const API_URL = 'https://script.google.com/macros/s/AKfycbw5EvQMo7N7jsKxpqS-gv_PzfTiV09zsqci4rpfUtK-7-ndmJDpNpI3Mzqxh8zdK8JrDw/exec'; 
         let currentUser = null;
 let currentTrackingData = [], filteredData = [], globalSummary = {};
-let isSearchMode = false;      // <--- เพิ่มบรรทัดนี้ (สำคัญมาก)
-let contractGroups = {};       // <--- เพิ่มบรรทัดนี้ (เพื่อความชัวร์)
+let isSearchMode = false;      
+let contractGroups = {};       
         const toBase64 = file => new Promise((resolve, reject) => { const reader = new FileReader(); reader.readAsDataURL(file); reader.onload = () => resolve(reader.result); reader.onerror = error => reject(error); });
         function linkify(text) { if (!text) return ''; const urlRegex = /(https?:\/\/[^\]\s]+)/g; return text.replace(urlRegex, function(url) { let downloadUrl = url; if(url.includes('drive.google.com') && url.includes('export=view')) { downloadUrl = url.replace('export=view', 'export=download'); } return `<span style="display:inline-flex; align-items:center; gap:4px; vertical-align:middle; margin-right:5px;"><a href="${url}" target="_blank" style="text-decoration:none; background:#e3f2fd; color:#1565c0; padding:2px 6px; border-radius:4px; font-size:11px; border:1px solid #90caf9;"><i class="fas fa-eye"></i> ดู</a><a href="${downloadUrl}" target="_blank" style="text-decoration:none; background:#ffebee; color:#c62828; padding:2px 6px; border-radius:4px; font-size:11px; border:1px solid #ef9a9a;" title="บันทึกรูป"><i class="fas fa-save"></i></a></span>`; }); }
 
@@ -207,7 +210,6 @@ let contractGroups = {};       // <--- เพิ่มบรรทัดนี�
             else { document.getElementById('filterDate').valueAsDate = new Date(); }
         };
 
-        // 🔥 แก้ไข 1: Login ปกติ + บันทึก Session ลงรายการ
         async function doLogin() {
             const u = document.getElementById('loginUser').value.trim();
             const p = document.getElementById('loginPass').value.trim();
@@ -219,44 +221,36 @@ let contractGroups = {};       // <--- เพิ่มบรรทัดนี�
                 const res = await fetch(API_URL, { method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({action:'login', username:u, password:p}) });
                 const d = await res.json();
                 if(d.status === 'success') {
-                    // ✅ บันทึก User ปัจจุบัน และ เพิ่มลงใน Saved Sessions
                     saveSession(d.user);
-                    location.reload(); // รีโหลดเพื่อเข้าสู่ระบบ
+                    location.reload(); 
                 } else { msg.innerHTML = `รหัสผ่านไม่ถูกต้อง`; msg.style.color = 'red'; }
             } catch(e) { msg.innerText = 'เชื่อมต่อล้มเหลว'; msg.style.color = 'red'; }
         }
 
-        // 🔥 ฟังก์ชันใหม่: บันทึก Session ลง LocalStorage (Multi-User)
         function saveSession(user) {
             currentUser = user;
             localStorage.setItem('kamky_user', JSON.stringify(currentUser));
             
-            // ดึงรายการเก่ามา
             let sessions = JSON.parse(localStorage.getItem('kamky_saved_sessions') || "[]");
-            // ลบชื่อเดิมออกก่อน (เพื่ออัปเดตข้อมูลล่าสุด)
             sessions = sessions.filter(s => s.username !== user.username);
-            // เพิ่มชื่อใหม่เข้าไป
             sessions.push(user);
             localStorage.setItem('kamky_saved_sessions', JSON.stringify(sessions));
         }
 
-        // 🔥 แก้ไข 2: เปลี่ยน doLogout ให้เป็นแค่การเคลียร์ Active User (แต่รายชื่อยังอยู่)
         function doLogout() { 
             localStorage.removeItem('kamky_user'); 
             location.reload(); 
         }
 
-        // 🔥 ฟังก์ชันใหม่: ลบ User ออกจากรายการจำถาวร
         function removeSavedUser(username) {
             let sessions = JSON.parse(localStorage.getItem('kamky_saved_sessions') || "[]");
             sessions = sessions.filter(s => s.username !== username);
             localStorage.setItem('kamky_saved_sessions', JSON.stringify(sessions));
             
-            // ถ้าลบตัวที่ใช้อยู่ ให้ Logout ด้วย
             if (currentUser && currentUser.username === username) {
                 doLogout();
             } else {
-                openSwitchAccountModal(); // เปิดหน้าต่างสลับบัญชีใหม่เพื่ออัปเดตรายการ
+                openSwitchAccountModal(); 
             }
         }
 
@@ -269,7 +263,6 @@ let contractGroups = {};       // <--- เพิ่มบรรทัดนี�
 
         function initApp() {
             document.getElementById('loginOverlay').style.display = 'none';
-            // เพิ่มปุ่มสลับบัญชีไว้ข้างชื่อ User
             document.getElementById('appTitle').innerHTML += ` 
                 <span class="user-profile-badge" onclick="userProfile()">
                     <i class="fas fa-user"></i> ${currentUser.name}
@@ -281,13 +274,17 @@ let contractGroups = {};       // <--- เพิ่มบรรทัดนี�
             document.getElementById('btnLogout').style.display = 'flex';
             if(!document.getElementById('filterDate').value) document.getElementById('filterDate').valueAsDate = new Date();
 
-            // ... (Logic การแสดงปุ่มตามสิทธิ์ เหมือนเดิม) ...
             const btnAdmin = document.getElementById('btnAdmin');
             if (btnAdmin) btnAdmin.style.display = checkPerm('manage_users') ? 'flex' : 'none';
             const btnExpense = document.getElementById('btnExpense');
             if (btnExpense) btnExpense.style.display = checkPerm('expense') ? 'flex' : 'none';
+            
             const btnShopReport = document.getElementById('btnShopReport');
             if (btnShopReport) btnShopReport.style.display = checkPerm('shop_report') ? 'flex' : 'none';
+            
+            const btnBreakEven = document.getElementById('btnBreakEven');
+            if (btnBreakEven) btnBreakEven.style.display = (currentUser.role === 'admin') ? 'flex' : 'none';
+            
             const btnClosed = document.querySelector('.btn-closed');
             if (btnClosed) btnClosed.style.display = checkPerm('closed') ? 'inline-flex' : 'none';
             const commonTools = ['btnExcel', 'btnReset'];
@@ -300,7 +297,6 @@ let contractGroups = {};       // <--- เพิ่มบรรทัดนี�
             loadData();
         }
 
-        // 🔥 ฟังก์ชันใหม่: หน้าต่างสลับบัญชี
         function openSwitchAccountModal() {
             let sessions = JSON.parse(localStorage.getItem('kamky_saved_sessions') || "[]");
             let listHtml = `<div style="text-align:left; max-height:300px; overflow-y:auto;">`;
@@ -341,7 +337,6 @@ let contractGroups = {};       // <--- เพิ่มบรรทัดนี�
             });
         }
 
-        // 🔥 ฟังก์ชันใหม่: สลับไปใช้ Session ที่เลือก
         function switchSession(username) {
             let sessions = JSON.parse(localStorage.getItem('kamky_saved_sessions') || "[]");
             let targetUser = sessions.find(s => s.username === username);
@@ -354,7 +349,6 @@ let contractGroups = {};       // <--- เพิ่มบรรทัดนี�
             }
         }
 
-        // 🔥 ฟังก์ชันใหม่: Login เพิ่มบัญชี (ผ่าน SweetAlert)
         async function addNewAccount() {
             const { value: formValues } = await Swal.fire({
                 title: 'เข้าสู่ระบบบัญชีใหม่',
@@ -382,10 +376,10 @@ let contractGroups = {};       // <--- เพิ่มบรรทัดนี�
                     const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({action:'login', username:u, password:p}) });
                     const d = await res.json();
                     if(d.status === 'success') {
-                        saveSession(d.user); // บันทึกและสลับทันที
+                        saveSession(d.user); 
                         Swal.fire({ icon: 'success', title: 'เพิ่มบัญชีเรียบร้อย', timer: 1000 }).then(() => location.reload());
                     } else {
-                        Swal.fire('Error', 'รหัสผ่านไม่ถูกต้อง', 'error').then(addNewAccount); // ให้ลองใหม่
+                        Swal.fire('Error', 'รหัสผ่านไม่ถูกต้อง', 'error').then(addNewAccount); 
                     }
                 } catch(e) {
                     Swal.fire('Error', 'เชื่อมต่อไม่ได้', 'error');
@@ -393,7 +387,6 @@ let contractGroups = {};       // <--- เพิ่มบรรทัดนี�
             }
         }
 
-        // ... (ฟังก์ชันอื่นๆ: loadData, recordExpense, manageUsers, etc. คงเดิม ไม่ต้องแก้) ...
         async function loadData() {
             if (!currentUser) return; 
             const dateInput = document.getElementById('filterDate');
@@ -443,7 +436,6 @@ let contractGroups = {};       // <--- เพิ่มบรรทัดนี�
             }
         }
 
-        // ... (ฟังก์ชันอื่นๆ manageUsers, addUser, deleteUser, doGlobalSearch, etc. คงเดิม) ...
         async function manageUsers() {
             if (!currentUser || currentUser.role !== 'admin') return Swal.fire('Error', 'Access Denied', 'error');
             Swal.fire({ title: 'กำลังโหลดรายชื่อ...', didOpen: () => Swal.showLoading() });
@@ -818,6 +810,149 @@ let contractGroups = {};       // <--- เพิ่มบรรทัดนี�
                 }
                 if (payload.sub_action) { await sendUserRequest(payload.sub_action, cNo, { note: payload.date ? `วันที่ส่ง: ${payload.date}` : '-' }); }
             }
+        }
+
+        // ==========================================
+        // ส่วนเสริม: รายงานจุดคุ้มทุน (Break-Even Report) สำหรับ Admin (อัปเดตมีภาพรวม)
+        // ==========================================
+        function showBreakEvenReport() {
+            if (!currentTrackingData || currentTrackingData.length === 0) { 
+                Swal.fire('ไม่มีข้อมูล', 'กรุณารอข้อมูลโหลดเสร็จก่อน', 'warning'); 
+                return; 
+            }
+
+            let totalCostAll = 0;
+            let totalCollectedAll = 0;
+            let expectedMonthlyIncome = 0; // คาดการณ์ยอดรับรายเดือน (รวมค่างวดที่กำลังผ่อนอยู่)
+
+            // 1. สร้างตารางและคำนวณยอดรวม
+            let tableRows = currentTrackingData.map((c, index) => {
+                let cost = parseFloat(c.product_cost || 0);
+                let collected = parseFloat(c.total_revenue || 0);
+                let profit = parseFloat(c.current_profit || 0);
+                let amountPerInst = parseFloat(c.amount || 0);
+                let status = c.status;
+
+                totalCostAll += cost;
+                totalCollectedAll += collected;
+
+                // ถ้ายกเลิก/ปิดยอดแล้ว หรือเป็นหนี้เสีย จะไม่นำค่างวดมาคิดในยอดคาดการณ์รายเดือน
+                if (status !== 'Paid' && status !== 'Close' && status !== 'BadDebt') {
+                    expectedMonthlyIncome += amountPerInst;
+                }
+
+                let statusText = "";
+                let estimateText = "-";
+
+                // เงื่อนไขการคำนวณจุดคุ้มทุนรายสัญญา
+                if (profit >= 0) {
+                    statusText = `<span style="color:green; font-weight:bold;">✅ คืนทุนแล้ว</span>`;
+                    estimateText = `<span style="color:blue; font-weight:bold;">เริ่มทำกำไร</span>`;
+                } else {
+                    let missingAmount = Math.abs(profit);
+                    statusText = `<span style="color:#e74c3c; font-weight:bold;">📉 ขาดทุน ${missingAmount.toLocaleString()}</span>`;
+                    
+                    if (amountPerInst > 0) {
+                        let instNeeded = Math.ceil(missingAmount / amountPerInst);
+                        estimateText = `ต้องเก็บอีก <b style="color:#e67e22;">${instNeeded}</b> งวด`;
+                    } else {
+                        estimateText = "N/A";
+                    }
+                }
+
+                return `
+                <tr style="border-bottom:1px solid #ddd; background: ${profit >= 0 ? '#f0fdf4' : '#fff5f5'};">
+                    <td style="padding:10px; text-align:center;">${index + 1}</td>
+                    <td style="padding:10px;"><b>${c.c_no}</b><br><span style="font-size:12px; color:#666;">${c.b_name}</span></td>
+                    <td style="padding:10px; text-align:right;">${cost.toLocaleString()}</td>
+                    <td style="padding:10px; text-align:right;">${collected.toLocaleString()}</td>
+                    <td style="padding:10px; text-align:center; background:rgba(255,255,255,0.5);">${statusText}</td>
+                    <td style="padding:10px; text-align:center; font-size:13px;">${estimateText}</td>
+                </tr>`;
+            }).join('');
+
+            // 2. คำนวณภาพรวมระดับบริษัท
+            let totalProfitAll = totalCollectedAll - totalCostAll;
+            let globalEstimateHtml = "";
+
+            if (totalProfitAll >= 0) {
+                // คืนทุนภาพรวมแล้ว
+                globalEstimateHtml = `
+                <div style="padding:15px; background:#d4edda; color:#155724; border-radius:8px; margin-top:10px; border:1px solid #c3e6cb; font-size:16px; text-align:center;">
+                    🎉 <b>ภาพรวมบริษัท: คืนทุนทั้งหมดแล้ว</b><br>
+                    มีกระแสเงินสดเป็นบวก <b>${totalProfitAll.toLocaleString()}</b> บาท (เริ่มจ่ายค่าคอมมิชชั่นได้)
+                </div>`;
+            } else {
+                // ยังขาดทุนภาพรวม (ต้องประเมิน)
+                let missingGlobal = Math.abs(totalProfitAll);
+                
+                if (expectedMonthlyIncome > 0) {
+                    let monthsToBreakEven = Math.ceil(missingGlobal / expectedMonthlyIncome);
+                    
+                    // คำนวณเดือนและปีเป้าหมาย
+                    let targetDate = new Date();
+                    targetDate.setMonth(targetDate.getMonth() + monthsToBreakEven);
+                    const monthNames = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+                    let targetMonthName = monthNames[targetDate.getMonth()];
+                    let targetYear = targetDate.getFullYear() + 543;
+
+                    globalEstimateHtml = `
+                    <div style="padding:15px; background:#fffdf5; color:#856404; border-radius:8px; margin-top:10px; border:1px solid #ffeeba; text-align:left; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                        <h4 style="margin:0 0 10px 0; color:#856404; font-size:16px;"><i class="fas fa-chart-pie"></i> ประเมินจุดคุ้มทุนภาพรวมบริษัท (Global Break-Even)</h4>
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; font-size:14px;">
+                            <div>ยอดที่บริษัทต้องเก็บเพิ่ม (คืนทุน): <b style="color:#dc3545; font-size:16px;">${missingGlobal.toLocaleString()}</b> บาท</div>
+                            <div>คาดการณ์ยอดจัดเก็บรายเดือน: <b style="color:#28a745; font-size:16px;">${expectedMonthlyIncome.toLocaleString()}</b> บาท/เดือน</div>
+                        </div>
+                        <div style="margin-top:10px; font-size:15px; border-top:1px dashed #ffeeba; padding-top:10px; display:flex; justify-content:space-between; align-items:center;">
+                            <span>👉 ต้องใช้เวลาเก็บอีกประมาณ <b style="color:#d35400; font-size:18px;">${monthsToBreakEven}</b> เดือน</span>
+                            <span style="background:#e8f5e9; padding:5px 10px; border-radius:5px; color:#2e7d32; font-weight:bold;">
+                                🎯 คาดว่าจะทำกำไร: ${targetMonthName} ${targetYear}
+                            </span>
+                        </div>
+                    </div>`;
+                } else {
+                    globalEstimateHtml = `
+                    <div style="padding:15px; background:#f8d7da; color:#721c24; border-radius:8px; margin-top:10px; border:1px solid #f5c6cb;">
+                        ⚠️ ภาพรวมยังขาดทุน <b>${missingGlobal.toLocaleString()}</b> บาท และปัจจุบันไม่มีสัญญาที่สามารถเก็บค่างวดได้เลย (ประเมินจุดคุ้มทุนไม่ได้)
+                    </div>`;
+                }
+            }
+
+            // 3. แสดง Popup
+            Swal.fire({
+                title: `📊 รายงานกระแสเงินสดและจุดคุ้มทุน`,
+                html: `
+                <div style="margin-bottom:20px;">
+                    ${globalEstimateHtml}
+                </div>
+                
+                <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:8px; padding: 0 5px;">
+                    <h4 style="margin:0; color:#4361ee; font-size:16px;"><i class="fas fa-list"></i> รายละเอียดแยกตามสัญญา</h4>
+                    <div style="font-size:12px; color:#666;">
+                        ต้นทุนรวม: <b>${totalCostAll.toLocaleString()}</b> | รับแล้วรวม: <b>${totalCollectedAll.toLocaleString()}</b>
+                    </div>
+                </div>
+
+                <div style="max-height:350px; overflow-y:auto; border:1px solid #eee; border-radius:8px;">
+                    <table style="width:100%; border-collapse:collapse; font-size:14px; text-align:left;">
+                        <thead style="background:#2b2d42; color:white; position: sticky; top: 0; z-index: 10;">
+                            <tr>
+                                <th style="padding:10px; text-align:center; width:5%;">#</th>
+                                <th style="padding:10px; width:30%;">เลขสัญญา/ลูกค้า</th>
+                                <th style="padding:10px; text-align:right; width:15%;">ต้นทุน</th>
+                                <th style="padding:10px; text-align:right; width:15%;">ยอดรับแล้ว</th>
+                                <th style="padding:10px; text-align:center; width:15%;">สถานะกำไร</th>
+                                <th style="padding:10px; text-align:center; width:20%;">ประเมินเก็บกำไร</th>
+                            </tr>
+                        </thead>
+                        <tbody>${tableRows}</tbody>
+                    </table>
+                </div>`,
+                width: '900px',
+                showCloseButton: true,
+                confirmButtonText: 'ปิดหน้าต่าง',
+                confirmButtonColor: '#4361ee'
+            });
         }
     </script>
     <script>
