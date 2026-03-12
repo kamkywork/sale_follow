@@ -196,13 +196,7 @@
             <button class="close-sidebar" onclick="toggleSidebar()"><i class="fas fa-times"></i></button>
         </div>
         <div class="sidebar-content">
-            
-            <div class="sidebar-section-title">ค้นหา & กรองข้อมูล</div>
-            <div style="position: relative; margin-bottom: 10px;">
-                <input type="text" id="searchInput" class="search-input" placeholder="🔍 ค้นหารายละเอียดสัญญา..." onkeyup="if(event.key==='Enter') { doGlobalSearch(); toggleSidebar(); }">
-            </div>
-            <input type="date" id="filterDate" class="date-input" style="margin-bottom: 20px;" onchange="loadData(); toggleSidebar();">
-            
+                                
             <div class="sidebar-section-title">จัดการข้อมูล</div>
             <button class="sidebar-btn" onclick="loadData(); toggleSidebar();"><i class="fas fa-sync-alt"></i> โหลดข้อมูลใหม่ (Refresh)</button>
             <button class="sidebar-btn" onclick="showAllContracts(); toggleSidebar();"><i class="fas fa-list"></i> ดูสัญญาทั้งหมด</button>
@@ -234,6 +228,11 @@
                 <h2 id="appTitle">ระบบติดตามยอด</h2>
             </div>
         </div>
+    </div>
+	
+	<div style="background: white; padding: 15px 20px; display: flex; gap: 10px; border-bottom: 1px solid #e2e8f0; box-shadow: 0 4px 10px rgba(0,0,0,0.03);">
+        <input type="date" id="filterDate" class="date-input" style="flex: 1; margin-bottom: 0;" onchange="loadData();">
+        <input type="text" id="searchInput" class="search-input" style="flex: 2; margin-bottom: 0;" placeholder="🔍 ค้นหาสัญญา..." onkeyup="if(event.key==='Enter') { doGlobalSearch(); }">
     </div>
 
     <div id="adminDashboard" class="perf-container" style="display:none; background:#f8fafc; border-bottom:1px solid #e2e8f0; padding-bottom:10px; margin-bottom: 0;">
@@ -691,10 +690,33 @@
                     if (c.original_due_date !== selectedDateThai && c.postpone_date === selectedDateThai) { c.worksheetStatus = `เลื่อนมาจาก ${c.original_due_date}`; } else { if (isPendingStatus) { c.worksheetStatus = c.status === 'รอปิดยอด' ? 'รอปิดยอด' : 'รอตรวจสอบ'; } else { c.worksheetStatus = c.overdue_count > 0 ? 'ค้างชำระ' : 'ปกติ'; } }
                     let item = { ...c, finalAmount: amt, hasPostpone: hasPostpone };
                     filteredData.push(item);
-                    if (isPendingStatus) { if (currentUser.role === 'admin' || !isPendingStatus) contractGroups.pending.push(item); } 
-                    else if (isPostponedToToday) { contractGroups.postpone.push(item); }
-                    else if (c.overdue_count > 0) { contractGroups.overdue.push(item); } 
-                    else if (isTargetToday) { contractGroups.normal.push(item); }
+                    // --- เพิ่มการคำนวณว่าเป็นการเลื่อนนัดในอนาคต/วันนี้หรือไม่ ---
+                    let isPostponeFutureOrToday = false;
+                    if (hasPostpone) {
+                        const pParts = c.postpone_date.split('/');
+                        if (pParts.length === 3) {
+                            let pDateObj = new Date(parseInt(pParts[2]) - 543, parseInt(pParts[1]) - 1, parseInt(pParts[0]));
+                            let sDateObj = selectedDate ? new Date(selectedDate) : new Date();
+                            sDateObj.setHours(0, 0, 0, 0);
+                            // ถ้าวันที่เลื่อนนัด มากกว่าหรือเท่ากับ วันที่กำลังดูอยู่
+                            if (pDateObj >= sDateObj) isPostponeFutureOrToday = true;
+                        }
+                    }
+
+                    // --- การจัดกลุ่มข้อมูล (แก้ไขใหม่) ---
+                    if (isPendingStatus) { 
+                        if (currentUser.role === 'admin' || !isPendingStatus) contractGroups.pending.push(item); 
+                    } 
+                    else if (isPostponedToToday) { 
+                        contractGroups.postpone.push(item); 
+                    }
+                    else if (c.overdue_count > 0 && !isPostponeFutureOrToday) { 
+                        // จะเข้ากล่องเกินกำหนด ก็ต่อเมื่อ ไม่ได้เลื่อนนัด หรือ วันที่เลื่อนนัดผ่านมาแล้วเท่านั้น
+                        contractGroups.overdue.push(item); 
+                    } 
+                    else if (isTargetToday && !isPostponeFutureOrToday) { 
+                        contractGroups.normal.push(item); 
+                    }
                 });
             }
             updateCharts(0, strictDailyCollected, 0, strictMonthlyCollected);
