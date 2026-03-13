@@ -274,7 +274,7 @@
     </div>
 
     <script>
-        const API_URL = 'https://script.google.com/macros/s/AKfycbzvhAHCZjWR1nQRdxHTH1BIAURFIwASUFkFlYSIfYLgAcKZl-q84n32cWFzCejHxKLpBw/exec'; 
+        const API_URL = 'https://script.google.com/macros/s/AKfycbwPk1a0kmUkDWVVkJUZP7k7TwPDuXBRYKpvCD39O221o7wXfNvwLuRuJWfXPQu85yWe6Q/exec'; 
         let currentUser = null;
         let currentTrackingData = [], filteredData = [], globalSummary = {};
         let isSearchMode = false;      
@@ -361,8 +361,7 @@
             `;
             if(!document.getElementById('filterDate').value) document.getElementById('filterDate').valueAsDate = new Date();
 
-            // Handle permissions for sidebar items
-            const displayType = 'flex'; // Use flex for sidebar items
+            const displayType = 'flex'; 
             
             const btnAdmin = document.getElementById('btnAdmin');
             if (btnAdmin) btnAdmin.style.display = checkPerm('manage_users') ? displayType : 'none';
@@ -374,7 +373,7 @@
             if (btnShopReport) btnShopReport.style.display = checkPerm('shop_report') ? displayType : 'none';
             
             const btnBreakEven = document.getElementById('btnBreakEven');
-            if (btnBreakEven) btnBreakEven.style.display = (currentUser.role === 'admin') ? displayType : 'none';
+            if (btnBreakEven) btnBreakEven.style.display = (currentUser.role === 'admin' || currentUser.sale_code === 'Central' || checkPerm('break_even')) ? displayType : 'none';
             
             const btnClosed = document.getElementById('btnClosed');
             if (btnClosed) btnClosed.style.display = checkPerm('closed') ? displayType : 'none';
@@ -537,10 +536,46 @@
                 const data = await res.json();
                 if (data.status !== 'success') throw new Error(data.message || 'Load failed');
                 let html = `<div style="text-align:left; max-height:300px; overflow-y:auto;"><table style="width:100%; font-size:14px; border-collapse:collapse;"><tr style="background:#f1f5f9; text-align:left;"><th style="padding:8px;">User</th><th style="padding:8px;">Name</th><th style="padding:8px;">Role</th><th style="padding:8px;">Action</th></tr>`;
-                data.users.forEach(u => { html += `<tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:8px;">${u.username}</td><td style="padding:8px;">${u.name}</td><td style="padding:8px;">${u.role}</td><td style="padding:8px;">${u.username !== 'admin' ? `<button onclick="deleteUser('${u.username}')" style="background:#ef4444; color:white; border:none; padding:4px 10px; border-radius:6px; cursor:pointer;">ลบ</button>` : '-'}</td></tr>`; });
+                data.users.forEach(u => { 
+                    html += `<tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:8px;">${u.username}</td><td style="padding:8px;">${u.name}</td><td style="padding:8px;">${u.role}</td><td style="padding:8px;">${u.username !== 'admin' ? `<button onclick="editUser('${u.username}', '${u.name}', '${u.role}', '${u.allowed_menus || ''}')" style="background:#f59e0b; color:white; border:none; padding:4px 10px; border-radius:6px; cursor:pointer; margin-right:5px;">แก้ไข</button><button onclick="deleteUser('${u.username}')" style="background:#ef4444; color:white; border:none; padding:4px 10px; border-radius:6px; cursor:pointer;">ลบ</button>` : '-'}</td></tr>`; 
+                });
                 html += `</table></div>`;
                 Swal.fire({ title: 'จัดการผู้ใช้งาน', html: html, width: '600px', showCloseButton: true, showConfirmButton: true, confirmButtonText: '+ เพิ่มผู้ใช้ใหม่', confirmButtonColor: '#2563eb' }).then((r) => { if (r.isConfirmed) addUser(); });
-            } catch (e) { Swal.fire({icon:'warning', title:'แจ้งเตือน', text:'ยังไม่พบฟังก์ชัน get_users ใน Script', confirmButtonText:'+ เพิ่มผู้ใช้ใหม่', showCancelButton:true}).then(r=>{ if(r.isConfirmed) addUser(); }); }
+            } catch (e) { Swal.fire({icon:'warning', title:'แจ้งเตือน', text:'เกิดข้อผิดพลาดในการโหลดข้อมูล', confirmButtonText:'+ เพิ่มผู้ใช้ใหม่', showCancelButton:true}).then(r=>{ if(r.isConfirmed) addUser(); }); }
+        }
+
+        async function editUser(username, name, role, allowed_menus) {
+            const { value: formValues } = await Swal.fire({
+                title: 'แก้ไขข้อมูลผู้ใช้งาน',
+                html: `
+                    <input id="edit-user" class="swal2-input" value="${username}" readonly style="background:#f1f5f9; color:#94a3b8; margin-bottom:10px; cursor:not-allowed;">
+                    <input id="edit-pass" class="swal2-input" placeholder="รหัสผ่านใหม่ (เว้นว่างถ้าไม่เปลี่ยน)" style="margin-bottom:10px;">
+                    <input id="edit-name" class="swal2-input" value="${name}" placeholder="Display Name (ชื่อเรียก)" style="margin-bottom:10px;">
+                    <select id="edit-role" class="swal2-input" style="margin-bottom:15px;">
+                        <option value="user" ${role === 'user' ? 'selected' : ''}>User (พนักงาน)</option>
+                        <option value="admin" ${role === 'admin' ? 'selected' : ''}>Admin (ผู้ดูแล)</option>
+                    </select>
+                    <div style="text-align:left; background:#f8fafc; padding:15px; border-radius:12px; font-size:14px; border:1px solid #e2e8f0;">
+                        <div style="font-weight:bold; margin-bottom:10px; color:var(--dark);">กำหนดสิทธิ์การเข้าถึง (Permissions):</div>
+                        <label style="cursor:pointer; display:block; margin-bottom:5px;"><input type="checkbox" class="perm-chk-edit" value="dashboard" ${allowed_menus.includes('dashboard') ? 'checked' : ''}> 📊 ดู Dashboard (ยอดรวม/กำไร)</label>
+                        <label style="cursor:pointer; display:block; margin-bottom:5px;"><input type="checkbox" class="perm-chk-edit" value="expense" ${allowed_menus.includes('expense') ? 'checked' : ''}> 💰 บันทึกรายจ่าย</label>
+                        <label style="cursor:pointer; display:block; margin-bottom:5px;"><input type="checkbox" class="perm-chk-edit" value="shop_report" ${allowed_menus.includes('shop_report') ? 'checked' : ''}> 🏪 ดูรายงานโอนร้าน</label>
+                        <label style="cursor:pointer; display:block; margin-bottom:5px;"><input type="checkbox" class="perm-chk-edit" value="closed" ${allowed_menus.includes('closed') ? 'checked' : ''}> ✅ ดูสัญญาปิดยอด/ครบงวด</label>
+                        <label style="cursor:pointer; display:block; margin-bottom:5px;"><input type="checkbox" class="perm-chk-edit" value="break_even" ${allowed_menus.includes('break_even') ? 'checked' : ''}> 📈 ดูรายงานจุดคุ้มทุน</label>
+                        <label style="cursor:pointer; display:block;"><input type="checkbox" class="perm-chk-edit" value="manage_users" ${allowed_menus.includes('manage_users') ? 'checked' : ''}> 👥 จัดการผู้ใช้งาน (Admin)</label>
+                    </div>
+                `,
+                focusConfirm: false, showCancelButton: true, confirmButtonText: 'บันทึกแก้ไข', confirmButtonColor: '#2563eb',
+                preConfirm: () => { 
+                    const checkboxes = document.querySelectorAll('.perm-chk-edit:checked');
+                    const selectedMenus = Array.from(checkboxes).map(cb => cb.value).join(',');
+                    return { username: document.getElementById('edit-user').value, password: document.getElementById('edit-pass').value, name: document.getElementById('edit-name').value, role: document.getElementById('edit-role').value, allowed_menus: selectedMenus } 
+                }
+            });
+            if (formValues) {
+                Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading() });
+                try { await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'edit_user', ...formValues }) }); Swal.fire('สำเร็จ', 'แก้ไขข้อมูลเรียบร้อย', 'success').then(() => manageUsers()); } catch(e) { Swal.fire('Error', 'แก้ไขไม่สำเร็จ', 'error'); }
+            }
         }
 
         async function addUser() {
@@ -560,6 +595,7 @@
                         <label style="cursor:pointer; display:block; margin-bottom:5px;"><input type="checkbox" class="perm-chk" value="expense"> 💰 บันทึกรายจ่าย</label>
                         <label style="cursor:pointer; display:block; margin-bottom:5px;"><input type="checkbox" class="perm-chk" value="shop_report"> 🏪 ดูรายงานโอนร้าน</label>
                         <label style="cursor:pointer; display:block; margin-bottom:5px;"><input type="checkbox" class="perm-chk" value="closed"> ✅ ดูสัญญาปิดยอด/ครบงวด</label>
+                        <label style="cursor:pointer; display:block; margin-bottom:5px;"><input type="checkbox" class="perm-chk" value="break_even"> 📈 ดูรายงานจุดคุ้มทุน</label>
                         <label style="cursor:pointer; display:block;"><input type="checkbox" class="perm-chk" value="manage_users"> 👥 จัดการผู้ใช้งาน (Admin)</label>
                     </div>
                 `,
@@ -683,7 +719,7 @@
                     const isPostponedToToday = (c.postpone_date === selectedDateThai);
                     const isDueToday = (c.due_date === selectedDateThai);
                     const hasPostpone = (c.postpone_date && c.postpone_date !== "-" && c.postpone_date !== "");
-                    const isPendingStatus = ['Pending_Approve', 'รอตรวจสอบ', 'รอปิดยอด'].includes(c.status);
+                    const isPendingStatus = ['Pending_Approve', 'รอตรวจสอบ', 'รอปิดยอด', 'Pending_Central_Approve'].includes(c.status);
                     let isTargetToday = (isPostponedToToday) || (isDueToday && !hasPostpone);
                     if (isTargetToday && isPaid) strictDailyCollected += amount;
                     if (c.due_date) { const parts = c.due_date.split('/'); if(parts.length === 3) { const cMonthStr = `${parts[2]}-${parts[1]}`; if (cMonthStr === selectedMonthStr && isPaid) strictMonthlyCollected += amount; } }
@@ -693,7 +729,7 @@
                     if (c.original_due_date !== selectedDateThai && c.postpone_date === selectedDateThai) { c.worksheetStatus = `เลื่อนมาจาก ${c.original_due_date}`; } else { if (isPendingStatus) { c.worksheetStatus = c.status === 'รอปิดยอด' ? 'รอปิดยอด' : 'รอตรวจสอบ'; } else { c.worksheetStatus = c.overdue_count > 0 ? 'ค้างชำระ' : 'ปกติ'; } }
                     let item = { ...c, finalAmount: amt, hasPostpone: hasPostpone };
                     filteredData.push(item);
-                    // --- เพิ่มการคำนวณว่าเป็นการเลื่อนนัดในอนาคต/วันนี้หรือไม่ ---
+                    
                     let isPostponeFutureOrToday = false;
                     if (hasPostpone) {
                         const pParts = c.postpone_date.split('/');
@@ -701,20 +737,18 @@
                             let pDateObj = new Date(parseInt(pParts[2]) - 543, parseInt(pParts[1]) - 1, parseInt(pParts[0]));
                             let sDateObj = selectedDate ? new Date(selectedDate) : new Date();
                             sDateObj.setHours(0, 0, 0, 0);
-                            // ถ้าวันที่เลื่อนนัด มากกว่าหรือเท่ากับ วันที่กำลังดูอยู่
+                            
                             if (pDateObj >= sDateObj) isPostponeFutureOrToday = true;
                         }
                     }
 
-                    // --- การจัดกลุ่มข้อมูล (แก้ไขใหม่) ---
                     if (isPendingStatus) { 
-                        if (currentUser.role === 'admin' || !isPendingStatus) contractGroups.pending.push(item); 
-                    } 
+    if (currentUser.role === 'admin' || currentUser.sale_code === 'Central') contractGroups.pending.push(item); 
+} 
                     else if (isPostponedToToday) { 
                         contractGroups.postpone.push(item); 
                     }
                     else if (c.overdue_count > 0 && !isPostponeFutureOrToday) { 
-                        // จะเข้ากล่องเกินกำหนด ก็ต่อเมื่อ ไม่ได้เลื่อนนัด หรือ วันที่เลื่อนนัดผ่านมาแล้วเท่านั้น
                         contractGroups.overdue.push(item); 
                     } 
                     else if (isTargetToday && !isPostponeFutureOrToday) { 
@@ -724,7 +758,7 @@
             }
             updateCharts(0, strictDailyCollected, 0, strictMonthlyCollected);
             if (data.summary && data.summary.commission !== undefined) { const commEl = document.getElementById('txtCommission'); if(commEl) commEl.innerText = (data.summary.commission || 0).toLocaleString(); }
-            if (contractGroups.pending.length > 0 && currentUser.role === 'admin') { polyContainer.innerHTML += createPolygonHtml('pending', 'รอตรวจสอบ', contractGroups.pending.length, 'poly-bg-pending', 'fas fa-clock'); }
+            if (contractGroups.pending.length > 0 && (currentUser.role === 'admin' || currentUser.sale_code === 'Central')) { polyContainer.innerHTML += createPolygonHtml('pending', 'รอตรวจสอบ/อนุมัติ', contractGroups.pending.length, 'poly-bg-pending', 'fas fa-clock'); }
             polyContainer.innerHTML += createPolygonHtml('normal', 'ปกติ (วันนี้)', contractGroups.normal.length, 'poly-bg-normal', 'fas fa-calendar-check');
             polyContainer.innerHTML += createPolygonHtml('postpone', 'เลื่อนนัดมาวันนี้', contractGroups.postpone.length, 'poly-bg-postpone', 'fas fa-history');
             polyContainer.innerHTML += createPolygonHtml('overdue', 'เกินกำหนด', contractGroups.overdue.length, 'poly-bg-overdue', 'fas fa-exclamation-circle');
@@ -750,16 +784,25 @@
         function createCardHtml(c) {
             if (c.finalAmount === undefined) { c.finalAmount = parseFloat(c.amount || 0) * (c.overdue_count > 1 ? c.overdue_count : 1); }
             if (c.hasPostpone === undefined) { c.hasPostpone = (c.postpone_date && c.postpone_date !== "-" && c.postpone_date !== ""); }
-            const isAdmin = currentUser.role === 'admin'; 
+            const isAdmin = (currentUser.role === 'admin' || currentUser.sale_code === 'Central'); 
             let cardClass = isSearchMode ? "card-search-result" : "card-normal"; 
             let statusHtml = `<span class="status-text text-green"><i class="fas fa-check-circle"></i> ปกติ</span>`;
             let hasPaymentNote = c.last_note && c.last_note.includes('แจ้งชำระ');
             const isClosed = (c.status === 'Paid' || c.status === 'Close');
+            
             if (c.status === 'Pending_Approve' || c.status === 'รอตรวจสอบ') { 
                 cardClass = "card-pending-approve"; 
                 if(isAdmin) statusHtml = `<span class="status-text text-orange" onclick="adminApprove('${c.c_no}', ${c.row_index}, '${c.request_date}', '${c.last_note || ''}', 'postpone')">⏳ รอตรวจสอบ (กด)</span>`; 
                 else statusHtml = `<span class="status-text text-orange">⏳ รอตรวจสอบ</span>`; 
             } 
+            else if (c.status === 'Pending_Central_Approve') {
+                cardClass = "card-pending-approve";
+                if (currentUser.sale_code === 'Central') {
+                    statusHtml = `<span class="status-text text-orange" onclick="adminApprove('${c.c_no}', ${c.row_index}, '-', '${c.last_note || ''}', 'postpone')">👑 รออนุมัติขั้นสุดท้าย(กด)</span>`;
+                } else {
+                    statusHtml = `<span class="status-text text-orange">⏳ รอส่วนกลาง (Central) อนุมัติ</span>`;
+                }
+            }
             else if (c.status === 'รอปิดยอด') { 
                 cardClass = "card-pending-approve"; 
                 if(isAdmin) statusHtml = `<span class="status-text text-red" style="cursor:pointer;" onclick="adminApprove('${c.c_no}', ${c.row_index}, '-', '${c.last_note || ''}', 'close')">🏁 รอปิดยอด (กดอนุมัติ)</span>`; 
@@ -768,6 +811,7 @@
             else if (c.hasPostpone) { cardClass = "card-postpone"; statusHtml = `<span class="status-text text-purple">⏰ เลื่อน: ${c.postpone_date}</span>`; } 
             else if (c.overdue_count > 0) { cardClass = "card-overdue"; statusHtml = `<span class="status-text text-red">❗ ค้าง ${c.overdue_count} งวด</span>`; }
             else if (isClosed) { statusHtml = `<span class="status-text text-green">✅ ปิดบัญชีแล้ว (${c.last_payment_date})</span>`; }
+            
             if (hasPaymentNote) { let noteContent = linkify(c.last_note); statusHtml += `<div style="font-size:11px; color:var(--primary); background:#eff6ff; padding:6px; border-radius:6px; margin-top:4px; border:1px solid #bfdbfe; white-space:normal; word-break:break-all;">💰 ${noteContent}</div>`; }
             let financialHtml = '';
             let profitClass = c.current_profit >= 0 ? 'color:#10b981;' : 'color:#ef4444;';
@@ -803,7 +847,7 @@
                     actionButtonsHtml = `<a href="tel:${c.b_mobile}" class="btn-act btn-act-call"><i class="fas fa-phone"></i> โทร</a>${infoBtn}${contractBtn}<button class="btn-act btn-act-pay" onclick="openPay('${c.c_no}')"><i class="fas fa-wallet"></i> จ่าย</button><button class="btn-act btn-act-postpone" style="grid-column: 1 / -1;" onclick="openPostpone(${c.row_index},'${c.b_name}', '${c.postpone_date||''}')"><i class="fas fa-calendar-check"></i> นัดหมาย</button>`;
                 } else {
                     gridClass = 'grid-user-actions';
-                    const isPending = (c.status === 'Pending_Approve' || c.status === 'รอตรวจสอบ' || c.status === 'รอปิดยอด');
+                    const isPending = (c.status === 'Pending_Approve' || c.status === 'รอตรวจสอบ' || c.status === 'รอปิดยอด' || c.status === 'Pending_Central_Approve');
                     const payBtn = isPending ? `<button class="user-checkbox-btn btn-disabled" disabled><i class="fas fa-clock"></i> รออนุมัติ</button>` : `<button class="user-checkbox-btn" onclick="userReqPay('${c.c_no}')"><i class="far fa-check-square"></i> แจ้งชำระ</button>`;
                     const closeBtn = isPending ? `<button class="user-checkbox-btn btn-disabled" disabled><i class="fas fa-flag-checkered"></i> ปิดยอด</button>` : `<button class="user-checkbox-btn" onclick="userReqClose('${c.c_no}')" style="color:#ef4444;"><i class="fas fa-flag-checkered"></i> ขอปิดยอด</button>`;
                     const followBtn = isPending ? `<button class="user-checkbox-btn btn-disabled" disabled><i class="fas fa-bullhorn"></i> ติดตาม</button>` : `<button class="user-checkbox-btn" onclick="userReqFollow('${c.c_no}')" style="color:#f59e0b;"><i class="fas fa-bullhorn"></i> ติดตาม</button>`;
@@ -838,7 +882,6 @@
             let confirmBtnText = type === 'close' ? 'อนุมัติปิดยอด' : 'อนุมัติ';
             let actionType = type === 'close' ? 'close_account' : 'approve_contract'; 
 
-            // ตกแต่งหน้าต่าง Popup ให้เหมือนรูปตัวอย่าง
             let customHtml = `
                 <div style="font-size: 18px; color: #64748b; margin-bottom: 20px; font-weight: normal;">เลขสัญญา: ${cNo}</div>
                 <div style="background: #f8fafc; border-radius: 12px; padding: 15px; text-align: left; color: #475569; font-size: 16px; border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 10px;">
@@ -854,9 +897,9 @@
                 denyButtonText: 'ปฏิเสธ (ตีกลับ)', 
                 confirmButtonText: confirmBtnText, 
                 cancelButtonText: 'ปิด', 
-                confirmButtonColor: '#0ea5e9', // สีฟ้า
-                denyButtonColor: '#b91c1c',    // สีแดง
-                cancelButtonColor: '#6b7280',  // สีเทา
+                confirmButtonColor: '#0ea5e9', 
+                denyButtonColor: '#b91c1c',    
+                cancelButtonColor: '#6b7280',  
                 reverseButtons: false
             }).then(async (result) => { 
                 if (result.isConfirmed) { 
@@ -864,9 +907,8 @@
                     if (type === 'postpone' && reqDate && reqDate !== '-') { 
                         await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'postpone', row_index: rowIndex, new_date: reqDate }) }); 
                     } 
-                    await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: actionType, row_index: rowIndex }) }); 
+                    await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: actionType, row_index: rowIndex, role: currentUser.role, sale_code: currentUser.sale_code }) }); 
                     
-                    // เช็คว่าเกี่ยวข้องกับการชำระเงิน หรือปิดยอด หรือไม่ ถ้าใช่ค่อยถามเรื่องใบเสร็จ
                     let isPaymentAction = details && (details.includes('ชำระ') || details.includes('ปิดยอด') || details.includes('โอน'));
                     
                     if (isPaymentAction || type === 'close') {
@@ -929,7 +971,7 @@
         function printReport() {
             if (!filteredData || filteredData.length === 0) { Swal.fire('ไม่มีข้อมูล', 'ไม่พบรายการที่จะพิมพ์', 'warning'); return; }
             const now = new Date(); const dateStr = `${now.getDate()}/${now.getMonth()+1}/${now.getFullYear()+543}`; const timeStr = `${now.getHours()}:${now.getMinutes().toString().padStart(2,'0')}`;
-            let tableRows = filteredData.map((item, index) => { let statusColor = item.overdue_count > 0 ? 'color:red;' : 'color:green;'; let statusText = item.status; if(item.overdue_count > 0) statusText = `ค้าง ${item.overdue_count} งวด`; else if(item.status === 'Paid' || item.status === 'Close') statusText = 'ปิดยอดแล้ว'; else if(item.status === 'Pending_Approve') statusText = 'รอตรวจสอบ'; return `<tr><td style="text-align:center;">${index + 1}</td><td>${item.c_no}</td><td>${item.b_name} <br> <span style="font-size:10px; color:#666;">${item.b_mobile}</span></td><td style="text-align:right;">${item.finalAmount.toLocaleString()}</td><td style="text-align:center; ${statusColor}">${statusText}</td><td>${item.last_note || '-'}</td></tr>`; }).join('');
+            let tableRows = filteredData.map((item, index) => { let statusColor = item.overdue_count > 0 ? 'color:red;' : 'color:green;'; let statusText = item.status; if(item.overdue_count > 0) statusText = `ค้าง ${item.overdue_count} งวด`; else if(item.status === 'Paid' || item.status === 'Close') statusText = 'ปิดยอดแล้ว'; else if(item.status === 'Pending_Approve' || item.status === 'Pending_Central_Approve') statusText = 'รอตรวจสอบ/อนุมัติ'; return `<tr><td style="text-align:center;">${index + 1}</td><td>${item.c_no}</td><td>${item.b_name} <br> <span style="font-size:10px; color:#666;">${item.b_mobile}</span></td><td style="text-align:right;">${item.finalAmount.toLocaleString()}</td><td style="text-align:center; ${statusColor}">${statusText}</td><td>${item.last_note || '-'}</td></tr>`; }).join('');
             const htmlContent = `<html><head><title>รายงานติดตามหนี้</title><link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600&display=swap" rel="stylesheet"><style> body { font-family: 'Sarabun', sans-serif; padding: 20px; } h2 { text-align: center; margin-bottom: 5px; } .meta { text-align: center; font-size: 12px; color: #555; margin-bottom: 20px; } table { width: 100%; border-collapse: collapse; font-size: 12px; } th { background: #eee; padding: 6px; border: 1px solid #ccc; } td { padding: 6px; border: 1px solid #ccc; vertical-align: middle; } @media print { button { display: none; } } </style></head><body><h2>รายการติดตามหนี้</h2><div class="meta">พิมพ์เมื่อ: ${dateStr} เวลา ${timeStr} | จำนวน: ${filteredData.length} รายการ</div><table><thead><tr><th width="5%">#</th><th width="15%">เลขสัญญา</th><th width="25%">ชื่อลูกค้า</th><th width="15%">ยอดชำระ</th><th width="15%">สถานะ</th><th width="25%">หมายเหตุ</th></tr></thead><tbody>${tableRows}</tbody></table><script>window.onload = function() { window.print(); }<\/script></body></html>`;
             let win = window.open('', '_blank'); win.document.write(htmlContent); win.document.close();
         }
@@ -975,6 +1017,56 @@
                     payload = { sub_action: 'req_bad_debt' };
                 }
                 if (payload.sub_action) { await sendUserRequest(payload.sub_action, cNo, { note: payload.date ? `วันที่ส่ง: ${payload.date}` : '-' }); }
+            }
+        }
+
+        async function manageUsers() {
+            if (!currentUser || currentUser.role !== 'admin') return Swal.fire('Error', 'Access Denied', 'error');
+            Swal.fire({ title: 'กำลังโหลดรายชื่อ...', didOpen: () => Swal.showLoading() });
+            try {
+                const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'get_users' }) });
+                const data = await res.json();
+                if (data.status !== 'success') throw new Error(data.message || 'Load failed');
+                let html = `<div style="text-align:left; max-height:300px; overflow-y:auto;"><table style="width:100%; font-size:14px; border-collapse:collapse;"><tr style="background:#f1f5f9; text-align:left;"><th style="padding:8px;">User</th><th style="padding:8px;">Name</th><th style="padding:8px;">Role</th><th style="padding:8px;">Action</th></tr>`;
+                data.users.forEach(u => { 
+                    html += `<tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:8px;">${u.username}</td><td style="padding:8px;">${u.name}</td><td style="padding:8px;">${u.role}</td><td style="padding:8px;">${u.username !== 'admin' ? `<button onclick="editUser('${u.username}', '${u.name}', '${u.role}', '${u.allowed_menus || ''}')" style="background:#f59e0b; color:white; border:none; padding:4px 10px; border-radius:6px; cursor:pointer; margin-right:5px;">แก้ไข</button><button onclick="deleteUser('${u.username}')" style="background:#ef4444; color:white; border:none; padding:4px 10px; border-radius:6px; cursor:pointer;">ลบ</button>` : '-'}</td></tr>`; 
+                });
+                html += `</table></div>`;
+                Swal.fire({ title: 'จัดการผู้ใช้งาน', html: html, width: '600px', showCloseButton: true, showConfirmButton: true, confirmButtonText: '+ เพิ่มผู้ใช้ใหม่', confirmButtonColor: '#2563eb' }).then((r) => { if (r.isConfirmed) addUser(); });
+            } catch (e) { Swal.fire({icon:'warning', title:'แจ้งเตือน', text:'เกิดข้อผิดพลาดในการโหลดข้อมูล', confirmButtonText:'+ เพิ่มผู้ใช้ใหม่', showCancelButton:true}).then(r=>{ if(r.isConfirmed) addUser(); }); }
+        }
+
+        async function editUser(username, name, role, allowed_menus) {
+            const { value: formValues } = await Swal.fire({
+                title: 'แก้ไขข้อมูลผู้ใช้งาน',
+                html: `
+                    <input id="edit-user" class="swal2-input" value="${username}" readonly style="background:#f1f5f9; color:#94a3b8; margin-bottom:10px; cursor:not-allowed;">
+                    <input id="edit-pass" class="swal2-input" placeholder="รหัสผ่านใหม่ (เว้นว่างถ้าไม่เปลี่ยน)" style="margin-bottom:10px;">
+                    <input id="edit-name" class="swal2-input" value="${name}" placeholder="Display Name (ชื่อเรียก)" style="margin-bottom:10px;">
+                    <select id="edit-role" class="swal2-input" style="margin-bottom:15px;">
+                        <option value="user" ${role === 'user' ? 'selected' : ''}>User (พนักงาน)</option>
+                        <option value="admin" ${role === 'admin' ? 'selected' : ''}>Admin (ผู้ดูแล)</option>
+                    </select>
+                    <div style="text-align:left; background:#f8fafc; padding:15px; border-radius:12px; font-size:14px; border:1px solid #e2e8f0;">
+                        <div style="font-weight:bold; margin-bottom:10px; color:var(--dark);">กำหนดสิทธิ์การเข้าถึง (Permissions):</div>
+                        <label style="cursor:pointer; display:block; margin-bottom:5px;"><input type="checkbox" class="perm-chk-edit" value="dashboard" ${allowed_menus.includes('dashboard') ? 'checked' : ''}> 📊 ดู Dashboard (ยอดรวม/กำไร)</label>
+                        <label style="cursor:pointer; display:block; margin-bottom:5px;"><input type="checkbox" class="perm-chk-edit" value="expense" ${allowed_menus.includes('expense') ? 'checked' : ''}> 💰 บันทึกรายจ่าย</label>
+                        <label style="cursor:pointer; display:block; margin-bottom:5px;"><input type="checkbox" class="perm-chk-edit" value="shop_report" ${allowed_menus.includes('shop_report') ? 'checked' : ''}> 🏪 ดูรายงานโอนร้าน</label>
+                        <label style="cursor:pointer; display:block; margin-bottom:5px;"><input type="checkbox" class="perm-chk-edit" value="closed" ${allowed_menus.includes('closed') ? 'checked' : ''}> ✅ ดูสัญญาปิดยอด/ครบงวด</label>
+                        <label style="cursor:pointer; display:block; margin-bottom:5px;"><input type="checkbox" class="perm-chk-edit" value="break_even" ${allowed_menus.includes('break_even') ? 'checked' : ''}> 📈 ดูรายงานจุดคุ้มทุน</label>
+                        <label style="cursor:pointer; display:block;"><input type="checkbox" class="perm-chk-edit" value="manage_users" ${allowed_menus.includes('manage_users') ? 'checked' : ''}> 👥 จัดการผู้ใช้งาน (Admin)</label>
+                    </div>
+                `,
+                focusConfirm: false, showCancelButton: true, confirmButtonText: 'บันทึกแก้ไข', confirmButtonColor: '#2563eb',
+                preConfirm: () => { 
+                    const checkboxes = document.querySelectorAll('.perm-chk-edit:checked');
+                    const selectedMenus = Array.from(checkboxes).map(cb => cb.value).join(',');
+                    return { username: document.getElementById('edit-user').value, password: document.getElementById('edit-pass').value, name: document.getElementById('edit-name').value, role: document.getElementById('edit-role').value, allowed_menus: selectedMenus } 
+                }
+            });
+            if (formValues) {
+                Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading() });
+                try { await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'edit_user', ...formValues }) }); Swal.fire('สำเร็จ', 'แก้ไขข้อมูลเรียบร้อย', 'success').then(() => manageUsers()); } catch(e) { Swal.fire('Error', 'แก้ไขไม่สำเร็จ', 'error'); }
             }
         }
 
@@ -1034,10 +1126,13 @@
             let totalProfitAll = totalCollectedAll - totalCostAll;
             let globalEstimateHtml = "";
 
+            let globalTitle = (currentUser.role === 'admin' || currentUser.sale_code === 'Central') ? "ภาพรวมบริษัท" : `ภาพรวมผลงานของคุณ (${currentUser.name})`;
+            let globalTargetWording = (currentUser.role === 'admin' || currentUser.sale_code === 'Central') ? "ยอดที่บริษัทต้องเก็บเพิ่ม" : "ยอดที่คุณต้องเก็บเพิ่ม";
+
             if (totalProfitAll >= 0) {
                 globalEstimateHtml = `
                 <div style="padding:20px; background:#dcfce7; color:#166534; border-radius:12px; margin-top:10px; border:1px solid #bbf7d0; font-size:16px; text-align:center;">
-                    🎉 <b style="font-size:18px;">ภาพรวมบริษัท: คืนทุนทั้งหมดแล้ว</b><br>
+                    🎉 <b style="font-size:18px;">${globalTitle}: คืนทุนทั้งหมดแล้ว</b><br>
                     มีกระแสเงินสดเป็นบวก <b style="font-size:20px; color:#15803d;">${totalProfitAll.toLocaleString()}</b> บาท
                 </div>`;
             } else {
@@ -1053,9 +1148,9 @@
 
                     globalEstimateHtml = `
                     <div style="padding:20px; background:#fefce8; color:#854d0e; border-radius:12px; margin-top:10px; border:1px solid #fef08a; text-align:left; box-shadow: 0 4px 10px rgba(0,0,0,0.02);">
-                        <h4 style="margin:0 0 15px 0; color:#a16207; font-size:16px;"><i class="fas fa-chart-pie"></i> ประเมินจุดคุ้มทุนภาพรวมบริษัท (Global Break-Even)</h4>
+                        <h4 style="margin:0 0 15px 0; color:#a16207; font-size:16px;"><i class="fas fa-chart-pie"></i> ประเมินจุดคุ้มทุน${globalTitle}</h4>
                         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; font-size:14px; background:white; padding:15px; border-radius:8px;">
-                            <div>ยอดที่บริษัทต้องเก็บเพิ่ม (คืนทุน):<br><b style="color:#ef4444; font-size:18px;">${missingGlobal.toLocaleString()}</b> บาท</div>
+                            <div>${globalTargetWording} (คืนทุน):<br><b style="color:#ef4444; font-size:18px;">${missingGlobal.toLocaleString()}</b> บาท</div>
                             <div>คาดการณ์ยอดจัดเก็บรายเดือน:<br><b style="color:#10b981; font-size:18px;">${expectedMonthlyIncome.toLocaleString()}</b> บาท/เดือน</div>
                         </div>
                         <div style="margin-top:15px; font-size:15px; padding-top:15px; border-top:1px dashed #fde047; display:flex; justify-content:space-between; align-items:center;">
