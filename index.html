@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ระบบติดตามยอด - Collection System (Modern UI)</title>
+    <title>ระบบติดตามสินเชื่อ Advance Mobile Finance - Collection System (Modern UI)</title>
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -40,7 +40,17 @@
         }
         .header-top { display: flex; justify-content: space-between; align-items: center; }
         .header-left { display: flex; align-items: center; gap: 12px; }
-        .header h2 { margin: 0; font-size: 20px; font-weight: 700; color: white; display: flex; align-items: center; gap: 8px; }
+        .header h2 { 
+    margin: 0; 
+    font-size: 18px; 
+    font-weight: 700; 
+    color: white; 
+    display: flex; 
+    align-items: center; 
+    flex-wrap: wrap; /* ยอมให้ป้ายชื่อผู้ใช้ (Badge) ปัดตกบรรทัดใหม่ได้เมื่อจอแคบ */
+    gap: 8px; 
+    line-height: 1.5; /* แก้ปัญหาสระและวรรณยุกต์ซ้อนกัน */
+}
         
         /* Hamburger Button */
         .btn-hamburger {
@@ -225,8 +235,9 @@
         <div class="header-top">
             <div class="header-left">
                 <button class="btn-hamburger" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
-                <h2 id="appTitle">ระบบติดตามยอด</h2>
+                <h2 id="appTitle">ระบบติดตามสินเชื่อ Advance Mobile Finance</h2>
             </div>
+            <div class="header-right" id="headerRight" style="display: flex; gap: 8px; align-items: center; flex-shrink: 0;"></div>
         </div>
     </div>
 	
@@ -351,14 +362,14 @@
 
         function initApp() {
             document.getElementById('loginOverlay').style.display = 'none';
-            document.getElementById('appTitle').innerHTML += ` 
-                <span class="user-profile-badge" onclick="userProfile()">
-                    <i class="fas fa-user"></i> ${currentUser.name}
-                </span>
-                <span class="user-profile-badge" style="background:rgba(255,255,255,0.9); color:var(--primary);" onclick="openSwitchAccountModal()" title="สลับบัญชี">
-                    <i class="fas fa-exchange-alt"></i> สลับ
-                </span>
-            `;
+            document.getElementById('headerRight').innerHTML = ` 
+            <span class="user-profile-badge" onclick="userProfile()">
+                <i class="fas fa-user"></i> ${currentUser.name}
+            </span>
+            <span class="user-profile-badge" style="background:rgba(255,255,255,0.9); color:var(--primary);" onclick="openSwitchAccountModal()" title="สลับบัญชี">
+                <i class="fas fa-exchange-alt"></i> สลับ
+            </span>
+        `;
             if(!document.getElementById('filterDate').value) document.getElementById('filterDate').valueAsDate = new Date();
 
             const displayType = 'flex'; 
@@ -972,7 +983,18 @@
             if (!filteredData || filteredData.length === 0) { Swal.fire('ไม่มีข้อมูล', 'ไม่พบรายการที่จะพิมพ์', 'warning'); return; }
             const now = new Date(); const dateStr = `${now.getDate()}/${now.getMonth()+1}/${now.getFullYear()+543}`; const timeStr = `${now.getHours()}:${now.getMinutes().toString().padStart(2,'0')}`;
             let tableRows = filteredData.map((item, index) => { let statusColor = item.overdue_count > 0 ? 'color:red;' : 'color:green;'; let statusText = item.status; if(item.overdue_count > 0) statusText = `ค้าง ${item.overdue_count} งวด`; else if(item.status === 'Paid' || item.status === 'Close') statusText = 'ปิดยอดแล้ว'; else if(item.status === 'Pending_Approve' || item.status === 'Pending_Central_Approve') statusText = 'รอตรวจสอบ/อนุมัติ'; return `<tr><td style="text-align:center;">${index + 1}</td><td>${item.c_no}</td><td>${item.b_name} <br> <span style="font-size:10px; color:#666;">${item.b_mobile}</span></td><td style="text-align:right;">${item.finalAmount.toLocaleString()}</td><td style="text-align:center; ${statusColor}">${statusText}</td><td>${item.last_note || '-'}</td></tr>`; }).join('');
-            const htmlContent = `<html><head><title>รายงานติดตามหนี้</title><link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600&display=swap" rel="stylesheet"><style> body { font-family: 'Sarabun', sans-serif; padding: 20px; } h2 { text-align: center; margin-bottom: 5px; } .meta { text-align: center; font-size: 12px; color: #555; margin-bottom: 20px; } table { width: 100%; border-collapse: collapse; font-size: 12px; } th { background: #eee; padding: 6px; border: 1px solid #ccc; } td { padding: 6px; border: 1px solid #ccc; vertical-align: middle; } @media print { button { display: none; } } </style></head><body><h2>รายการติดตามหนี้</h2><div class="meta">พิมพ์เมื่อ: ${dateStr} เวลา ${timeStr} | จำนวน: ${filteredData.length} รายการ</div><table><thead><tr><th width="5%">#</th><th width="15%">เลขสัญญา</th><th width="25%">ชื่อลูกค้า</th><th width="15%">ยอดชำระ</th><th width="15%">สถานะ</th><th width="25%">หมายเหตุ</th></tr></thead><tbody>${tableRows}</tbody></table><script>window.onload = function() { window.print(); }<\/script></body></html>`;
+            const htmlContent = `<html><head><title>รายงานติดตามหนี้</title><link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600&display=swap" rel="stylesheet"><style> body { font-family: 'Sarabun', sans-serif; padding: 20px; } h2 { text-align: center; margin-bottom: 5px; } .meta { text-align: center; font-size: 12px; color: #555; margin-bottom: 20px; } table { width: 100%; border-collapse: collapse; font-size: 12px; } th { background: #eee; padding: 6px; border: 1px solid #ccc; } td { padding: 6px; border: 1px solid #ccc; vertical-align: middle; } @media print { button { display: none; } @media (max-width: 600px) {
+    .header-left {
+        align-items: flex-start; /* ให้ปุ่มแฮมเบอร์เกอร์อยู่ชิดบนเสมอเวลาข้อความขึ้นบรรทัดใหม่ */
+    }
+    .header h2 {
+        font-size: 16px; /* ลดขนาดฟอนต์ชื่อแอปลงเล็กน้อยในจอมือถือ */
+    }
+    .btn-hamburger {
+        margin-top: 2px; 
+        flex-shrink: 0; /* ป้องกันปุ่มแฮมเบอร์เกอร์โดนบีบจนเบี้ยว */
+    }
+} </style></head><body><h2>รายการติดตามหนี้</h2><div class="meta">พิมพ์เมื่อ: ${dateStr} เวลา ${timeStr} | จำนวน: ${filteredData.length} รายการ</div><table><thead><tr><th width="5%">#</th><th width="15%">เลขสัญญา</th><th width="25%">ชื่อลูกค้า</th><th width="15%">ยอดชำระ</th><th width="15%">สถานะ</th><th width="25%">หมายเหตุ</th></tr></thead><tbody>${tableRows}</tbody></table><script>window.onload = function() { window.print(); }<\/script></body></html>`;
             let win = window.open('', '_blank'); win.document.write(htmlContent); win.document.close();
         }
 		
