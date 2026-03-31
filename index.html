@@ -41,16 +41,16 @@
         .header-top { display: flex; justify-content: space-between; align-items: center; }
         .header-left { display: flex; align-items: center; gap: 12px; }
         .header h2 { 
-    margin: 0; 
-    font-size: 18px; 
-    font-weight: 700; 
-    color: white; 
-    display: flex; 
-    align-items: center; 
-    flex-wrap: wrap; /* ยอมให้ป้ายชื่อผู้ใช้ (Badge) ปัดตกบรรทัดใหม่ได้เมื่อจอแคบ */
-    gap: 8px; 
-    line-height: 1.5; /* แก้ปัญหาสระและวรรณยุกต์ซ้อนกัน */
-}
+            margin: 0; 
+            font-size: 18px; 
+            font-weight: 700; 
+            color: white; 
+            display: flex; 
+            align-items: center; 
+            flex-wrap: wrap; 
+            gap: 8px; 
+            line-height: 1.5; 
+        }
         
         /* Hamburger Button */
         .btn-hamburger {
@@ -239,6 +239,10 @@
             <button id="btnShopReport" class="sidebar-btn" style="display:none;" onclick="showShopTransferReport(); toggleSidebar();"><i class="fas fa-money-bill-wave text-green"></i> ยอดโอนร้าน (Shop)</button>
             <button id="btnBreakEven" class="sidebar-btn" style="display:none;" onclick="showBreakEvenReport(); toggleSidebar();"><i class="fas fa-chart-line" style="color:#8b5cf6;"></i> รายงานจุดคุ้มทุน</button>
             
+            <button id="btnSalarySlip" class="sidebar-btn" onclick="openSalarySlip(); toggleSidebar();"><i class="fas fa-file-invoice-dollar" style="color:#10b981;"></i> สลิปเงินเดือน (Salary)</button>
+            <button id="btnAdvanceReq" class="sidebar-btn" onclick="openAdvanceRequest(); toggleSidebar();"><i class="fas fa-hand-holding-usd" style="color:#f59e0b;"></i> ขอเบิกล่วงหน้า</button>
+            <button id="btnAdvanceApprove" class="sidebar-btn" style="display:none;" onclick="openAdvanceApproval(); toggleSidebar();"><i class="fas fa-check-double text-orange"></i> อนุมัติเบิกล่วงหน้า</button>
+            
             <div class="sidebar-section-title">ส่งออกข้อมูล</div>
             <button id="btnPrint" class="sidebar-btn" onclick="printReport(); toggleSidebar();"><i class="fas fa-print"></i> พิมพ์รายงาน (Print)</button>
             <button id="btnExcel" class="sidebar-btn" onclick="exportToExcel(); toggleSidebar();" style="display:none;"><i class="fas fa-file-excel text-green"></i> ส่งออก Excel</button>
@@ -340,7 +344,7 @@
     </div>
 
     <script>
-        const API_URL = 'https://script.google.com/macros/s/AKfycbwC_ARAGUg0y_TlUaX8KqbBjZq_IlQvkcg164BNu-MjBMZktCuv6lJ5RA3uDjEjrF-Isg/exec'; 
+        const API_URL = 'https://script.google.com/macros/s/AKfycbxmWer6DdL-ShDkb2yJQiTH7cFcpEsGDmEpxe5yFD8oHEbNJ8UG6GmIhZY0tRGEbBPcWw/exec'; 
         let currentUser = null;
         let currentTrackingData = [], filteredData = [], globalSummary = {};
         let isSearchMode = false;      
@@ -364,6 +368,7 @@
             else { document.getElementById('filterDate').valueAsDate = new Date(); }
         };
 
+        // --- แก้ไขปัญหาล็อกอินค้าง ---
         async function doLogin() {
             const u = document.getElementById('loginUser').value.trim();
             const p = document.getElementById('loginPass').value.trim();
@@ -372,13 +377,28 @@
             
             msg.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ตรวจสอบ...';
             try {
-                const res = await fetch(API_URL, { method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({action:'login', username:u, password:p}) });
+                const res = await fetch(API_URL, { 
+                    method: 'POST', 
+                    redirect: 'follow', 
+                    headers: { "Content-Type": "text/plain;charset=utf-8" }, 
+                    body: JSON.stringify({action:'login', username:u, password:p}) 
+                });
+                
+                if (!res.ok) throw new Error("HTTP error " + res.status);
+                
                 const d = await res.json();
                 if(d.status === 'success') {
                     saveSession(d.user);
                     location.reload(); 
-                } else { msg.innerHTML = `รหัสผ่านไม่ถูกต้อง`; msg.style.color = 'red'; }
-            } catch(e) { msg.innerText = 'เชื่อมต่อล้มเหลว'; msg.style.color = 'red'; }
+                } else { 
+                    msg.innerHTML = d.message || `รหัสผ่านไม่ถูกต้อง`; 
+                    msg.style.color = 'red'; 
+                }
+            } catch(e) { 
+                msg.innerHTML = 'เชื่อมต่อล้มเหลว กรุณาลองใหม่'; 
+                msg.style.color = 'red'; 
+                console.error("Login Error:", e);
+            }
         }
 
         function saveSession(user) {
@@ -394,6 +414,19 @@
         function doLogout() { 
             localStorage.removeItem('kamky_user'); 
             location.reload(); 
+        }
+		
+		function switchSession(username) {
+            let sessions = JSON.parse(localStorage.getItem('kamky_saved_sessions') || "[]");
+            let userToSwitch = sessions.find(u => u.username === username);
+            
+            if (userToSwitch) {
+                currentUser = userToSwitch;
+                localStorage.setItem('kamky_user', JSON.stringify(currentUser));
+                location.reload(); // รีเฟรชหน้าเพื่อโหลดข้อมูลและสิทธิ์ของยูเซอร์ใหม่
+            } else {
+                Swal.fire('Error', 'ไม่พบบัญชีผู้ใช้งานในระบบ', 'error');
+            }
         }
 
         function removeSavedUser(username) {
@@ -444,6 +477,9 @@
             const btnClosed = document.getElementById('btnClosed');
             if (btnClosed) btnClosed.style.display = checkPerm('closed') ? displayType : 'none';
             
+            const btnAdvanceApprove = document.getElementById('btnAdvanceApprove');
+            if (btnAdvanceApprove) btnAdvanceApprove.style.display = (currentUser.role === 'admin' || currentUser.sale_code === 'Central') ? displayType : 'none';
+
             const commonTools = ['btnExcel', 'btnReset'];
             const canManage = checkPerm('manage_users'); 
             commonTools.forEach(id => {
@@ -494,18 +530,6 @@
             });
         }
 
-        function switchSession(username) {
-            let sessions = JSON.parse(localStorage.getItem('kamky_saved_sessions') || "[]");
-            let targetUser = sessions.find(s => s.username === username);
-            if (targetUser) {
-                currentUser = targetUser;
-                localStorage.setItem('kamky_user', JSON.stringify(currentUser));
-                Swal.fire({ icon: 'success', title: `ยินดีต้อนรับ ${targetUser.name}`, timer: 800, showConfirmButton: false }).then(() => {
-                    location.reload();
-                });
-            }
-        }
-
         async function addNewAccount() {
             const { value: formValues } = await Swal.fire({
                 title: 'เข้าสู่ระบบบัญชีใหม่',
@@ -531,16 +555,22 @@
                 
                 Swal.showLoading();
                 try {
-                    const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({action:'login', username:u, password:p}) });
+                    const res = await fetch(API_URL, { 
+                        method: 'POST', 
+                        redirect: 'follow', 
+                        headers: { "Content-Type": "text/plain;charset=utf-8" }, 
+                        body: JSON.stringify({action:'login', username:u, password:p}) 
+                    });
                     const d = await res.json();
                     if(d.status === 'success') {
                         saveSession(d.user); 
                         Swal.fire({ icon: 'success', title: 'เพิ่มบัญชีเรียบร้อย', timer: 1000 }).then(() => location.reload());
                     } else {
-                        Swal.fire('Error', 'รหัสผ่านไม่ถูกต้อง', 'error').then(addNewAccount); 
+                        Swal.fire('Error', d.message || 'รหัสผ่านไม่ถูกต้อง', 'error').then(addNewAccount); 
                     }
                 } catch(e) {
                     Swal.fire('Error', 'เชื่อมต่อไม่ได้', 'error');
+                    console.error("Add Account Error:", e);
                 }
             }
         }
@@ -1231,6 +1261,335 @@
             });
         }
         
+        // ---------------------------------------------------
+        // ส่วนเสริมใหม่: ระบบเบิกล่วงหน้า สลิปเงินเดือน และ อนุมัติเบิกเงิน
+        // ---------------------------------------------------
+        
+        // 1. หน้าจอเซลล์ขอเบิกเงินล่วงหน้า
+        async function openAdvanceRequest() {
+            const { value: formValues } = await Swal.fire({
+                title: 'ขอเบิกเงินล่วงหน้า',
+                html: `
+                    <div style="text-align:left; font-size:14px; margin-bottom:10px;">
+                        <label style="color:var(--gray); font-weight:bold;">1. จำนวนเงินที่ต้องการเบิก (บาท):</label>
+                        <input id="adv-amount" type="number" class="swal2-input" placeholder="0.00" style="margin-top:5px; width:90%;">
+                    </div>
+                    <div style="text-align:left; font-size:14px; margin-bottom:10px;">
+                        <label style="color:var(--gray); font-weight:bold;">2. รูปแบบการหักคืน:</label>
+                        <select id="adv-type" class="swal2-input" style="margin-top:5px; width:90%;" onchange="document.getElementById('adv-installments-div').style.display = this.value === 'Installment' ? 'block' : 'none'">
+                            <option value="Full">หักคืนเต็มจำนวน (เมื่อมีคอมมิชชั่น)</option>
+                            <option value="Installment">แบ่งหักเป็นงวด</option>
+                        </select>
+                    </div>
+                    <div id="adv-installments-div" style="display:none; text-align:left; font-size:14px; margin-bottom:10px;">
+                        <label style="color:var(--gray); font-weight:bold;">จำนวนงวดที่ต้องการแบ่งหัก:</label>
+                        <input id="adv-installments" type="number" class="swal2-input" placeholder="ระบุจำนวนงวด" style="margin-top:5px; width:90%;">
+                    </div>
+                    <div style="text-align:left; font-size:14px; margin-bottom:10px;">
+                        <label style="color:var(--gray); font-weight:bold;">3. เหตุผลการเบิก:</label>
+                        <textarea id="adv-reason" class="swal2-textarea" placeholder="ระบุเหตุผลความจำเป็น..." style="margin-top:5px; width:90%; height:80px;"></textarea>
+                    </div>
+                    <div style="font-size:12px; color:red; margin-top:10px;">*ยอดจะถูกหักคืนก็ต่อเมื่อคุณมีค่าคอมมิชชั่นเท่านั้น</div>
+                `,
+                showCancelButton: true,
+                confirmButtonText: 'ส่งคำขออนุมัติ',
+                cancelButtonText: 'ยกเลิก',
+                confirmButtonColor: '#2563eb',
+                preConfirm: () => {
+                    const amount = document.getElementById('adv-amount').value;
+                    const type = document.getElementById('adv-type').value;
+                    const inst = document.getElementById('adv-installments').value;
+                    const reason = document.getElementById('adv-reason').value;
+                    
+                    if (!amount || amount <= 0) { Swal.showValidationMessage('กรุณาระบุจำนวนเงิน'); return false; }
+                    if (type === 'Installment' && (!inst || inst <= 0)) { Swal.showValidationMessage('กรุณาระบุจำนวนงวด'); return false; }
+                    
+                    return { amount, repayment_type: type, installments: type === 'Full' ? 1 : inst, reason };
+                }
+            });
+
+            if (formValues) {
+                Swal.fire({ title: 'กำลังส่งคำขอ...', didOpen: () => Swal.showLoading() });
+                try {
+                    await fetch(API_URL, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            action: 'request_advance',
+                            sale_code: currentUser.sale_code,
+                            user: currentUser.username,
+                            ...formValues
+                        })
+                    });
+                    Swal.fire('สำเร็จ', 'ส่งคำขอเบิกล่วงหน้าเรียบร้อยแล้ว รอการอนุมัติตามลำดับ', 'success');
+                } catch (e) { Swal.fire('Error', 'ไม่สามารถส่งคำขอได้', 'error'); }
+            }
+        }
+
+        // 2. หน้าจอรายงานสลิปเงินเดือน (Salary Slip)
+        async function openSalarySlip() {
+            if (!globalSummary) return Swal.fire('ไม่มีข้อมูล', 'กรุณารอระบบโหลดข้อมูลให้เสร็จสิ้นก่อน', 'warning');
+
+            Swal.fire({ title: 'กำลังคำนวณข้อมูล...', didOpen: () => Swal.showLoading() });
+
+            try {
+                // ดึงข้อมูลยอดเบิกล่วงหน้าจริงจากฐานข้อมูล
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'get_salary_info', user: currentUser })
+                });
+                const d = await res.json();
+                
+                if (d.status !== 'success') throw new Error('Load failed');
+
+                let collected = globalSummary.commission_breakdown ? globalSummary.commission_breakdown.revenue : 0;
+                let profit = globalSummary.commission_breakdown ? globalSummary.commission_breakdown.net_profit_month : 0;
+                let commission = globalSummary.commission || 0;
+                
+                let baseSalary = 12000; // ฐานเงินเดือน (สามารถปรับให้ดึงจาก DB ได้ในอนาคต)
+                let advanceRemaining = d.advance_remaining || 0; 
+                let suggestedDeduction = d.suggested_deduction || 0;
+                let advanceDeduction = 0;
+
+                // ตรรกะสำคัญ: หักคืนเมื่อมีคอมมิชชั่นเท่านั้น และไม่หักเกินคอมมิชชั่นที่มี (ป้องกันรายรับติดลบ)
+                if (commission > 0 && advanceRemaining > 0) {
+                     advanceDeduction = Math.min(commission, suggestedDeduction, advanceRemaining); 
+                }
+
+                let netPay = baseSalary + commission - advanceDeduction;
+                let dateVal = document.getElementById('filterDate').value;
+let selectedMonth = "เดือนปัจจุบัน";
+if (dateVal) {
+    let d = new Date(dateVal);
+    const thaiMonths = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+    selectedMonth = thaiMonths[d.getMonth()] + " " + (d.getFullYear() + 543);
+}
+
+                let html = `
+                <div id="slip-print-area" style="padding:20px; text-align:left; font-family:'Sarabun', sans-serif; color:#333; border:1px solid #e2e8f0; border-radius:12px; background:#fff; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+                    <div style="text-align:center; margin-bottom:20px; border-bottom:2px solid #2563eb; padding-bottom:15px;">
+                        <h3 style="margin:0; color:#1e3a8a; font-size:20px;"><i class="fas fa-file-invoice-dollar"></i> ใบแจ้งเงินเดือน (Salary Slip)</h3>
+                        <p style="margin:8px 0 0 0; color:#475569; font-weight:bold;">ประจำรอบเดือน: ${selectedMonth}</p>
+                        <p style="margin:4px 0 0 0; color:#64748b;">รหัสเซลล์: ${currentUser.sale_code} | ชื่อพนักงาน: ${currentUser.name}</p>
+                    </div>
+                    
+                    <table style="width:100%; border-collapse:collapse; margin-bottom:20px; font-size:14px;">
+                        <tr style="background:#f1f5f9; border-bottom:2px solid #cbd5e1;">
+                            <th style="padding:10px; text-align:left; color:#334155;">รายการรายรับ (Earnings)</th>
+                            <th style="padding:10px; text-align:right; color:#334155;">จำนวนเงิน (บาท)</th>
+                        </tr>
+                        <tr style="border-bottom:1px dashed #e2e8f0;">
+                            <td style="padding:10px;">1.1 เงินเดือนพื้นฐาน</td>
+                            <td style="padding:10px; text-align:right;">${baseSalary.toLocaleString()}</td>
+                        </tr>
+                        <tr style="background:#f8fafc;">
+                            <td style="padding:10px 10px 4px 10px; color:#64748b; font-size:12px;" colspan="2">
+                                • 1.2 ยอดเก็บค่างวดได้เดือนนี้: ${collected.toLocaleString()} บาท<br>
+                                • 1.3 ยอดกำไรสุทธิ (ฐานคำนวณ): ${profit > 0 ? profit.toLocaleString() : 0} บาท
+                            </td>
+                        </tr>
+                        <tr style="border-bottom:1px solid #cbd5e1;">
+                            <td style="padding:10px; font-weight:bold; color:#10b981;">1.4 ค่าคอมมิชชั่น (20%)</td>
+                            <td style="padding:10px; text-align:right; font-weight:bold; color:#10b981;">${commission.toLocaleString()}</td>
+                        </tr>
+                        
+                        <tr style="background:#fff1f2; border-bottom:2px solid #fecdd3;">
+                            <th style="padding:10px; text-align:left; color:#be123c; margin-top:10px;">รายการหัก (Deductions)</th>
+                            <th style="padding:10px; text-align:right;"></th>
+                        </tr>
+                        <tr style="border-bottom:1px solid #e2e8f0;">
+                            <td style="padding:10px; color:#e11d48;">
+                                หักคืนเงินเบิกล่วงหน้า<br>
+                                <span style="font-size:11px; color:#9f1239;">*ยอดเบิกสะสมทั้งหมด: ${advanceRemaining.toLocaleString()} บาท</span><br>
+                                <span style="font-size:11px; color:#9f1239;">*คงเหลือหลังหักงวดนี้: ${(advanceRemaining - advanceDeduction).toLocaleString()} บาท</span>
+                            </td>
+                            <td style="padding:10px; text-align:right; color:#e11d48; font-weight:bold;">- ${advanceDeduction.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                        </tr>
+                    </table>
+                    
+                    <div style="display:flex; justify-content:space-between; align-items:center; padding:15px; background: linear-gradient(135deg, #eff6ff, #dbeafe); border-radius:10px; border:1px solid #bfdbfe;">
+                        <span style="font-size:16px; font-weight:bold; color:#1e40af;">รายรับสุทธิ (Net Pay):</span>
+                        <span style="font-size:26px; font-weight:900; color:#1d4ed8; letter-spacing:-0.5px;">฿${netPay.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                    </div>
+                </div>
+                `;
+
+                Swal.fire({
+                    html: html,
+                    width: '600px',
+                    showCloseButton: true,
+                    showCancelButton: true,
+                    cancelButtonText: 'ปิด',
+                    confirmButtonText: '<i class="fas fa-download"></i> บันทึกเป็นรูปภาพ (JPG)',
+                    confirmButtonColor: '#10b981', // เปลี่ยนสีปุ่มเป็นสีเขียวให้ดูเหมือนการดาวน์โหลด
+                    preConfirm: () => {
+                        const targetElement = document.getElementById('slip-print-area');
+                        Swal.showLoading(); // แสดงไอคอนโหลดระหว่างประมวลผลรูปภาพ
+                        
+                        // ใช้ html2canvas เพื่อแปลง HTML เป็นภาพ
+                        return html2canvas(targetElement, { 
+                            scale: 2, // ขยายสเกล 2 เท่าให้ภาพชัดเจนขึ้น
+                            backgroundColor: '#ffffff' 
+                        }).then(canvas => {
+                            let link = document.createElement('a');
+                            // ตั้งชื่อไฟล์ที่จะเซฟ เช่น Salary_Slip_ชื่อเซลล์_มีนาคม_2569.jpg
+                            let fileNameMonth = selectedMonth.replace(' ', '_');
+                            link.download = `Salary_Slip_${currentUser.name}_${fileNameMonth}.jpg`;
+                            link.href = canvas.toDataURL('image/jpeg', 0.9); // คุณภาพ 90%
+                            link.click();
+                            return true;
+                        }).catch(err => {
+                            Swal.showValidationMessage(`เกิดข้อผิดพลาดในการสร้างรูปภาพ: ${err}`);
+                        });
+                    }
+                }).then((res) => {
+                    if(res.isConfirmed) {
+                        Swal.fire({ icon: 'success', title: 'บันทึกภาพสลิปเงินเดือนสำเร็จ', timer: 1500, showConfirmButton: false });
+                    }
+                });
+
+            } catch (e) {
+                Swal.fire('Error', 'เกิดข้อผิดพลาดในการดึงข้อมูลเงินเดือน', 'error');
+            }
+        }
+
+        // 3. ดึงข้อมูลและสร้างหน้าจออนุมัติ (Admin/Central)
+        async function openAdvanceApproval() {
+            Swal.fire({ title: 'กำลังโหลดข้อมูล...', didOpen: () => Swal.showLoading() });
+
+            try {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'get_advances', user: currentUser })
+                });
+                const data = await res.json();
+
+                if (data.status !== 'success') throw new Error('โหลดข้อมูลล้มเหลว');
+
+                let rowsHtml = '';
+                if (data.advances && data.advances.length > 0) {
+                    let filteredAdvances = data.advances.filter(a => {
+                        if (a.status === 'Approved' || a.status === 'Rejected') return false; 
+                        return true; 
+                    });
+
+                    filteredAdvances.forEach(a => {
+                        let statusBadge = '';
+                        let actionButtons = '';
+
+                        if (a.status === 'Pending_Admin') {
+                            statusBadge = `<span style="background:#fef08a; color:#854d0e; padding:3px 8px; border-radius:12px; font-size:11px;">รอ Admin รับทราบ</span>`;
+                            if (currentUser.role === 'admin' || currentUser.sale_code === 'Central') {
+                                actionButtons = `
+                                    <button class="btn-act" style="background:#10b981; color:white; border:none; padding:4px 8px; font-size:12px; margin-bottom:4px;" onclick="processAdvance('${a.id}', ${a.row_index}, 'approve')">รับทราบ/ส่งต่อ</button>
+                                    <button class="btn-act" style="background:#ef4444; color:white; border:none; padding:4px 8px; font-size:12px;" onclick="processAdvance('${a.id}', ${a.row_index}, 'reject')">ไม่อนุมัติ</button>
+                                `;
+                            }
+                        } else if (a.status === 'Pending_Central') {
+                            statusBadge = `<span style="background:#fed7aa; color:#c2410c; padding:3px 8px; border-radius:12px; font-size:11px;">รอ Central อนุมัติ</span>`;
+                            if (currentUser.sale_code === 'Central') {
+                                actionButtons = `
+                                    <button class="btn-act" style="background:#10b981; color:white; border:none; padding:4px 8px; font-size:12px; margin-bottom:4px;" onclick="processAdvance('${a.id}', ${a.row_index}, 'approve')">อนุมัติ (Central)</button>
+                                    <button class="btn-act" style="background:#ef4444; color:white; border:none; padding:4px 8px; font-size:12px;" onclick="processAdvance('${a.id}', ${a.row_index}, 'reject')">ไม่อนุมัติ</button>
+                                `;
+                            } else {
+                                actionButtons = `<span style="color:#94a3b8; font-size:11px;">รอ Central ดำเนินการ</span>`;
+                            }
+                        }
+
+                        let formatAmount = parseFloat(a.amount).toLocaleString();
+                        let dateReq = new Date(a.date).toLocaleDateString('th-TH');
+
+                        rowsHtml += `
+                            <tr style="border-bottom:1px solid #e2e8f0;">
+                                <td style="padding:10px;">
+                                    <b>${a.user}</b> <span style="font-size:11px; color:#94a3b8;">(${dateReq})</span><br>
+                                    <span style="color:var(--gray); font-size:11px;">ทีม ${a.sale_code} (หัก: ${a.type === 'Full' ? 'เต็มจำนวน' : a.installments + ' งวด'})</span><br>
+                                    <span style="color:var(--gray); font-size:11px;">เหตุผล: ${a.reason}</span>
+                                </td>
+                                <td style="padding:10px; text-align:right; font-weight:bold; color:var(--danger);">${formatAmount}</td>
+                                <td style="padding:10px; text-align:center;">${statusBadge}</td>
+                                <td style="padding:10px; text-align:center;">${actionButtons}</td>
+                            </tr>
+                        `;
+                    });
+                    
+                    if (rowsHtml === '') rowsHtml = `<tr><td colspan="4" style="text-align:center; padding:20px; color:var(--gray);">ไม่มีรายการรอดำเนินการ</td></tr>`;
+                } else {
+                    rowsHtml = `<tr><td colspan="4" style="text-align:center; padding:20px; color:var(--gray);">ยังไม่มีข้อมูลการขอเบิกล่วงหน้า</td></tr>`;
+                }
+
+                let html = `
+                    <div style="text-align:left; max-height:400px; overflow-y:auto;">
+                        <table style="width:100%; border-collapse:collapse; font-size:13px; text-align:left;">
+                            <thead style="background:var(--dark); color:white; position: sticky; top: 0; z-index:10;">
+                                <tr>
+                                    <th style="padding:10px; width:40%;">พนักงาน/รายละเอียด</th>
+                                    <th style="padding:10px; text-align:right; width:20%;">ยอดเบิก</th>
+                                    <th style="padding:10px; text-align:center; width:20%;">สถานะ</th>
+                                    <th style="padding:10px; text-align:center; width:20%;">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody>${rowsHtml}</tbody>
+                        </table>
+                    </div>
+                `;
+                
+                Swal.fire({
+                    title: 'รายการขอเบิกเงินล่วงหน้า',
+                    html: html,
+                    width: '750px',
+                    showCloseButton: true,
+                    confirmButtonText: 'ปิดหน้าต่าง',
+                    confirmButtonColor: '#2563eb'
+                });
+
+            } catch (e) {
+                Swal.fire('Error', 'ไม่สามารถโหลดข้อมูลได้', 'error');
+            }
+        }
+
+        // 4. ยืนยันการอนุมัติ/ปฏิเสธรายการ
+        async function processAdvance(id, rowIndex, actionType) {
+            let confirmText = actionType === 'approve' ? 'ยืนยันการรับทราบ/ส่งต่อ?' : 'ยืนยันการไม่อนุมัติ?';
+            if (currentUser.sale_code === 'Central' && actionType === 'approve') confirmText = 'ยืนยันอนุมัติเบิกเงินขั้นสุดท้าย?';
+            
+            let confirmColor = actionType === 'approve' ? '#10b981' : '#ef4444';
+
+            const { isConfirmed, value: note } = await Swal.fire({
+                title: confirmText,
+                input: actionType === 'reject' ? 'text' : null,
+                inputPlaceholder: 'ระบุเหตุผล (ถ้ามี)',
+                showCancelButton: true,
+                confirmButtonText: 'ยืนยัน',
+                cancelButtonText: 'ยกเลิก',
+                confirmButtonColor: confirmColor
+            });
+
+            if (isConfirmed) {
+                Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading() });
+                try {
+                    await fetch(API_URL, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            action: 'approve_advance',
+                            id: id,
+                            row_index: rowIndex,
+                            approve_action: actionType,
+                            role: currentUser.role,
+                            sale_code: currentUser.sale_code,
+                            user: currentUser.name,
+                            note: note || ''
+                        })
+                    });
+                    Swal.fire('สำเร็จ', 'บันทึกข้อมูลเรียบร้อย', 'success').then(() => {
+                        openAdvanceApproval(); 
+                    });
+                } catch (e) {
+                    Swal.fire('Error', 'ไม่สามารถบันทึกได้ กรุณาลองใหม่', 'error');
+                }
+            }
+        }
+
         // --- Monthly Dashboard Logic ---
         let monthlyChartInstance = null;
 
@@ -1239,7 +1598,6 @@
                 return Swal.fire('ไม่มีข้อมูล', 'กำลังโหลดข้อมูล กรุณารอสักครู่', 'warning');
             }
 
-            // ซ่อนองค์ประกอบอื่นๆ
             document.getElementById('statContainer').style.display = 'none';
             document.getElementById('adminDashboard').style.display = 'none';
             document.getElementById('polygonContainer').style.display = 'none';
@@ -1247,7 +1605,6 @@
             document.getElementById('contractListHeading').style.display = 'none';
             document.getElementById('contractList').style.display = 'none';
             
-            // แสดง Dashboard
             document.getElementById('monthlyDashboard').style.display = 'block';
 
             processAndRenderMonthlyChart();
@@ -1258,7 +1615,6 @@
             document.getElementById('statContainer').style.display = 'grid';
             document.getElementById('polygonContainer').style.display = 'grid';
             document.getElementById('contractList').style.display = 'block';
-            // รีโหลดหน้าหลักกลับมา
             renderDirectList(filteredData);
         }
 
@@ -1266,7 +1622,6 @@
             const monthsData = {};
             const monthLabels = [];
             
-            // 1. หาวันที่เริ่มต้น (เดือนที่เก่าที่สุด) และเดือนปัจจุบัน
             let minDateObj = new Date();
             minDateObj.setDate(1); 
             minDateObj.setHours(0,0,0,0);
@@ -1275,7 +1630,6 @@
             maxDateObj.setDate(1);
             maxDateObj.setHours(0,0,0,0);
 
-            // กวาดหาเดือนที่เก่าที่สุดจากข้อมูลทั้งหมด
             currentTrackingData.forEach(c => {
                 if (c.c_date && c.c_date !== "-") {
                     let parts = c.c_date.split('/');
@@ -1303,7 +1657,6 @@
                 } catch (e) {}
             });
 
-            // 2. สร้าง Label สำหรับทุกเดือนตั้งแต่เดือนแรก จนถึงปัจจุบัน
             let currentDateIter = new Date(minDateObj.getTime());
             
             while (currentDateIter <= maxDateObj) {
@@ -1320,9 +1673,7 @@
             let totalAllCost = 0;
             let totalAllRev = 0;
 
-            // 3. ใส่ข้อมูลลงในแต่ละเดือน
             currentTrackingData.forEach(c => {
-                // คำนวณเงินลงทุนจริง (ยอดโอนให้ร้าน ไม่ใช่ราคาเต็ม)
                 if (c.c_date && c.c_date !== "-") {
                     let parts = c.c_date.split('/');
                     if (parts.length === 3) {
@@ -1331,7 +1682,6 @@
                         let cKey = `${year}-${month}`;
                         
                         if (monthsData[cKey]) {
-                            // ดึงยอดโอนร้านมาเป็นต้นทุนจริง (ถ้าไม่มี หรือเป็น 0 ให้ดึงราคาเต็มมาแทนเผื่อข้อมูลเก่า)
                             let realInvestment = parseFloat(String(c.shop_transfer_amount || 0).replace(/,/g, ''));
                             if (isNaN(realInvestment) || realInvestment === 0) {
                                 realInvestment = parseFloat(c.product_cost || 0);
@@ -1341,13 +1691,12 @@
                     }
                 }
 
-                // คำนวณยอดเก็บ (เฉพาะค่างวดและค่าปรับ)
                 try {
                     let records = JSON.parse(c.records_json || "{}");
                     for (let key in records) {
                         let rec = records[key];
                         if (rec.rawDate && rec.paidAmount) {
-                            let rKey = rec.rawDate.substring(0, 7); // yyyy-MM
+                            let rKey = rec.rawDate.substring(0, 7); 
                             let payAmt = parseFloat(String(rec.paidAmount).replace(/,/g, '')) || 0;
                             let fineAmt = parseFloat(String(rec.fineAmount).replace(/,/g, '')) || 0;
                             
@@ -1362,8 +1711,8 @@
             const costData = [];
             const revData = [];
             const commData = [];
+            const deviceCountData = []; 
 
-            // 4. สรุปผลและดึงข้อมูลลงกราฟ
             Object.keys(monthsData).sort().forEach(key => {
                 let m = monthsData[key];
                 costData.push(m.cost);
@@ -1372,13 +1721,13 @@
                 totalAllCost += m.cost;
                 totalAllRev += m.revenue;
 
-                // คาดการณ์คอมมิชชั่น (กำไร = ยอดเก็บค่างวด - เงินลงทุนจริง)
                 let estProfit = m.revenue - m.cost;
                 let estComm = estProfit > 0 ? estProfit * 0.20 : 0;
                 commData.push(estComm);
+                
+                deviceCountData.push(0); 
             });
 
-            // อัปเดตตัวเลขบนการ์ดด้านบน
             document.getElementById('dashTotalCost').innerText = totalAllCost.toLocaleString();
             document.getElementById('dashTotalRev').innerText = totalAllRev.toLocaleString();
             let progress = totalAllCost > 0 ? ((totalAllRev / totalAllCost) * 100).toFixed(1) : 100;
@@ -1387,7 +1736,6 @@
             let totalEstComm = commData.reduce((a, b) => a + b, 0);
             document.getElementById('dashEstComm').innerText = totalEstComm.toLocaleString();
 
-            // 5. วาดกราฟ
             const ctx = document.getElementById('monthlyChartCanvas').getContext('2d');
             if (monthlyChartInstance) {
                 monthlyChartInstance.destroy();
@@ -1403,25 +1751,49 @@
                             data: revData,
                             backgroundColor: '#3b82f6',
                             borderRadius: 6,
-                            order: 2
+                            order: 3,
+                            yAxisID: 'y'
                         },
                         {
                             label: 'เงินลงทุนจริง (Cost)',
                             data: costData,
                             backgroundColor: '#ef4444',
                             borderRadius: 6,
-                            order: 3
+                            order: 4,
+                            yAxisID: 'y'
                         },
                         {
-                            label: 'คาดการณ์คอมฯ (Est. Comm)',
+                            label: 'จำนวนเครื่องที่ขาย (เครื่อง)',
+                            data: deviceCountData,
+                            backgroundColor: '#10b981',
+                            borderRadius: 6,
+                            order: 5,
+                            yAxisID: 'y1'
+                        },
+                        {
+                            label: 'แนวโน้มกำไรสุทธิ (Trend)',
                             data: commData,
                             type: 'line',
-                            borderColor: '#f59e0b',
-                            backgroundColor: '#f59e0b',
+                            borderColor: '#8b5cf6',
+                            backgroundColor: '#8b5cf6',
                             borderWidth: 3,
+                            pointRadius: 4,
+                            tension: 0.4,
+                            fill: false,
+                            order: 1,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'แนวโน้มยอดขาย (Trend)',
+                            data: revData,
+                            type: 'line',
+                            borderColor: '#3b82f6',
+                            borderDash: [5, 5],
+                            borderWidth: 2,
                             tension: 0.3,
                             fill: false,
-                            order: 1
+                            order: 2,
+                            yAxisID: 'y'
                         }
                     ]
                 },
@@ -1436,14 +1808,24 @@
                                 label: function(context) {
                                     let label = context.dataset.label || '';
                                     if (label) { label += ': '; }
-                                    if (context.parsed.y !== null) { label += new Intl.NumberFormat().format(context.parsed.y) + ' บาท'; }
+                                    if (context.parsed.y !== null) { label += new Intl.NumberFormat().format(context.parsed.y); }
                                     return label;
                                 }
                             }
                         }
                     },
                     scales: {
-                        y: { beginAtZero: true, ticks: { callback: function(value) { return new Intl.NumberFormat().format(value); } } }
+                        y: { 
+                            type: 'linear', display: true, position: 'left',
+                            title: { display: true, text: 'จำนวนเงิน (บาท)' },
+                            beginAtZero: true, ticks: { callback: function(value) { return new Intl.NumberFormat().format(value); } }
+                        },
+                        y1: {
+                            type: 'linear', display: true, position: 'right',
+                            title: { display: true, text: 'จำนวนเครื่อง' },
+                            grid: { drawOnChartArea: false },
+                            beginAtZero: true
+                        }
                     }
                 }
             });
