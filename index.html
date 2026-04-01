@@ -240,6 +240,7 @@
             <button id="btnBreakEven" class="sidebar-btn" style="display:none;" onclick="showBreakEvenReport(); toggleSidebar();"><i class="fas fa-chart-line" style="color:#8b5cf6;"></i> รายงานจุดคุ้มทุน</button>
             
             <button id="btnSalarySlip" class="sidebar-btn" onclick="openSalarySlip(); toggleSidebar();"><i class="fas fa-file-invoice-dollar" style="color:#10b981;"></i> สลิปเงินเดือน (Salary)</button>
+            <button id="btnSalaryHistory" class="sidebar-btn" onclick="openSalaryHistory(); toggleSidebar();"><i class="fas fa-history" style="color:#3b82f6;"></i> ประวัติเงินเดือนย้อนหลัง</button>
             <button id="btnAdvanceReq" class="sidebar-btn" onclick="openAdvanceRequest(); toggleSidebar();"><i class="fas fa-hand-holding-usd" style="color:#f59e0b;"></i> ขอเบิกล่วงหน้า</button>
             <button id="btnAdvanceApprove" class="sidebar-btn" style="display:none;" onclick="openAdvanceApproval(); toggleSidebar();"><i class="fas fa-check-double text-orange"></i> อนุมัติเบิกล่วงหน้า</button>
             
@@ -344,7 +345,7 @@
     </div>
 
     <script>
-        const API_URL = 'https://script.google.com/macros/s/AKfycbxmWer6DdL-ShDkb2yJQiTH7cFcpEsGDmEpxe5yFD8oHEbNJ8UG6GmIhZY0tRGEbBPcWw/exec'; 
+        const API_URL = 'https://script.google.com/macros/s/AKfycbwYh5W0Egqxg5OlzY7slrCx_2BBCmAAFo56E6Ey7guLqSCf1126Um5musnWGAgpM3PLpA/exec'; 
         let currentUser = null;
         let currentTrackingData = [], filteredData = [], globalSummary = {};
         let isSearchMode = false;      
@@ -415,15 +416,15 @@
             localStorage.removeItem('kamky_user'); 
             location.reload(); 
         }
-		
-		function switchSession(username) {
+
+        function switchSession(username) {
             let sessions = JSON.parse(localStorage.getItem('kamky_saved_sessions') || "[]");
             let userToSwitch = sessions.find(u => u.username === username);
             
             if (userToSwitch) {
                 currentUser = userToSwitch;
                 localStorage.setItem('kamky_user', JSON.stringify(currentUser));
-                location.reload(); // รีเฟรชหน้าเพื่อโหลดข้อมูลและสิทธิ์ของยูเซอร์ใหม่
+                location.reload(); 
             } else {
                 Swal.fire('Error', 'ไม่พบบัญชีผู้ใช้งานในระบบ', 'error');
             }
@@ -839,8 +840,8 @@
                     }
 
                     if (isPendingStatus) { 
-    if (currentUser.role === 'admin' || currentUser.sale_code === 'Central') contractGroups.pending.push(item); 
-} 
+                        if (currentUser.role === 'admin' || currentUser.sale_code === 'Central') contractGroups.pending.push(item); 
+                    } 
                     else if (isPostponedToToday) { 
                         contractGroups.postpone.push(item); 
                     }
@@ -1332,7 +1333,6 @@
             Swal.fire({ title: 'กำลังคำนวณข้อมูล...', didOpen: () => Swal.showLoading() });
 
             try {
-                // ดึงข้อมูลยอดเบิกล่วงหน้าจริงจากฐานข้อมูล
                 const res = await fetch(API_URL, {
                     method: 'POST',
                     body: JSON.stringify({ action: 'get_salary_info', user: currentUser })
@@ -1345,24 +1345,32 @@
                 let profit = globalSummary.commission_breakdown ? globalSummary.commission_breakdown.net_profit_month : 0;
                 let commission = globalSummary.commission || 0;
                 
-                let baseSalary = 12000; // ฐานเงินเดือน (สามารถปรับให้ดึงจาก DB ได้ในอนาคต)
+                // กำหนดฐานเงินเดือนตามตำแหน่ง
+                let baseSalary = 12000; // ค่าเริ่มต้นสำหรับเซลล์ (User)
+                if (currentUser.role === 'admin') {
+                    baseSalary = 16000; // สำหรับแอดมิน
+                }
+                if (currentUser.sale_code === 'Central') {
+                    baseSalary = 0; // เจ้าของกิจการ (Central) ไม่มีฐานเงินเดือน
+                } 
                 let advanceRemaining = d.advance_remaining || 0; 
                 let suggestedDeduction = d.suggested_deduction || 0;
                 let advanceDeduction = 0;
 
-                // ตรรกะสำคัญ: หักคืนเมื่อมีคอมมิชชั่นเท่านั้น และไม่หักเกินคอมมิชชั่นที่มี (ป้องกันรายรับติดลบ)
                 if (commission > 0 && advanceRemaining > 0) {
                      advanceDeduction = Math.min(commission, suggestedDeduction, advanceRemaining); 
                 }
 
                 let netPay = baseSalary + commission - advanceDeduction;
+                
+                // รูปแบบเดือนภาษาไทย
                 let dateVal = document.getElementById('filterDate').value;
-let selectedMonth = "เดือนปัจจุบัน";
-if (dateVal) {
-    let d = new Date(dateVal);
-    const thaiMonths = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
-    selectedMonth = thaiMonths[d.getMonth()] + " " + (d.getFullYear() + 543);
-}
+                let selectedMonth = "เดือนปัจจุบัน";
+                if (dateVal) {
+                    let dObj = new Date(dateVal);
+                    const thaiMonths = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+                    selectedMonth = thaiMonths[dObj.getMonth()] + " " + (dObj.getFullYear() + 543);
+                }
 
                 let html = `
                 <div id="slip-print-area" style="padding:20px; text-align:left; font-family:'Sarabun', sans-serif; color:#333; border:1px solid #e2e8f0; border-radius:12px; background:#fff; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
@@ -1413,6 +1421,17 @@ if (dateVal) {
                 </div>
                 `;
 
+                // ส่วนปุ่มบันทึกสำหรับ Admin
+                if (currentUser.role === 'admin' || currentUser.sale_code === 'Central') {
+                    html += `
+                    <div style="margin-top: 20px; border-top: 2px dashed #e2e8f0; padding-top: 15px;">
+                        <button onclick="saveSalarySnapshot('${selectedMonth}', '${currentUser.username}', '${currentUser.name}', ${baseSalary}, ${commission}, ${advanceDeduction}, ${netPay})" class="btn-act" style="width:100%; padding:12px; background:#10b981; color:white; border:none; border-radius:10px; font-size:16px;">
+                            <i class="fas fa-save"></i> อนุมัติและบันทึกปิดยอดเดือนนี้
+                        </button>
+                        <div style="font-size:11px; color:#ef4444; text-align:center; margin-top:5px;">*เมื่อกดบันทึก ระบบจะหักลบยอดหนี้เบิกล่วงหน้าให้ถาวรและไม่สามารถแก้ไขสลิปเดือนนี้ได้อีก</div>
+                    </div>`;
+                }
+
                 Swal.fire({
                     html: html,
                     width: '600px',
@@ -1420,21 +1439,19 @@ if (dateVal) {
                     showCancelButton: true,
                     cancelButtonText: 'ปิด',
                     confirmButtonText: '<i class="fas fa-download"></i> บันทึกเป็นรูปภาพ (JPG)',
-                    confirmButtonColor: '#10b981', // เปลี่ยนสีปุ่มเป็นสีเขียวให้ดูเหมือนการดาวน์โหลด
+                    confirmButtonColor: '#10b981',
                     preConfirm: () => {
                         const targetElement = document.getElementById('slip-print-area');
-                        Swal.showLoading(); // แสดงไอคอนโหลดระหว่างประมวลผลรูปภาพ
+                        Swal.showLoading(); 
                         
-                        // ใช้ html2canvas เพื่อแปลง HTML เป็นภาพ
                         return html2canvas(targetElement, { 
-                            scale: 2, // ขยายสเกล 2 เท่าให้ภาพชัดเจนขึ้น
+                            scale: 2, 
                             backgroundColor: '#ffffff' 
                         }).then(canvas => {
                             let link = document.createElement('a');
-                            // ตั้งชื่อไฟล์ที่จะเซฟ เช่น Salary_Slip_ชื่อเซลล์_มีนาคม_2569.jpg
                             let fileNameMonth = selectedMonth.replace(' ', '_');
                             link.download = `Salary_Slip_${currentUser.name}_${fileNameMonth}.jpg`;
-                            link.href = canvas.toDataURL('image/jpeg', 0.9); // คุณภาพ 90%
+                            link.href = canvas.toDataURL('image/jpeg', 0.9);
                             link.click();
                             return true;
                         }).catch(err => {
@@ -1611,11 +1628,17 @@ if (dateVal) {
         }
 
         function closeMonthlyDashboard() {
+            // ซ่อนหน้าแดชบอร์ด
             document.getElementById('monthlyDashboard').style.display = 'none';
+            
+            // เปิดกล่องข้อมูลหลักกลับมา
             document.getElementById('statContainer').style.display = 'grid';
             document.getElementById('polygonContainer').style.display = 'grid';
             document.getElementById('contractList').style.display = 'block';
-            renderDirectList(filteredData);
+            
+            // เรียกวาดหน้าจอใหม่ด้วยข้อมูลเดิม (ไม่ต้องโหลดเซิร์ฟเวอร์ใหม่) เพื่อให้ UI ทุกอย่างกลับมาเหมือนเดิมเป๊ะ 100%
+            const currentDate = document.getElementById('filterDate').value;
+            renderDashboard({ contracts: currentTrackingData, summary: globalSummary }, currentDate);
         }
 
         function processAndRenderMonthlyChart() {
@@ -1665,7 +1688,7 @@ if (dateVal) {
                 
                 if (!monthsData[mKey]) {
                     monthLabels.push(mLabel);
-                    monthsData[mKey] = { cost: 0, revenue: 0, commission: 0, label: mLabel };
+                    monthsData[mKey] = { cost: 0, revenue: 0, commission: 0, count: 0, label: mLabel };
                 }
                 currentDateIter.setMonth(currentDateIter.getMonth() + 1);
             }
@@ -1687,6 +1710,7 @@ if (dateVal) {
                                 realInvestment = parseFloat(c.product_cost || 0);
                             }
                             monthsData[cKey].cost += realInvestment;
+                            monthsData[cKey].count += 1;
                         }
                     }
                 }
@@ -1721,11 +1745,12 @@ if (dateVal) {
                 totalAllCost += m.cost;
                 totalAllRev += m.revenue;
 
+                // คำนวณค่าคอมมิชชั่นของเดือนนั้นสำหรับแสดงแท่งกราฟ (ถ้ากำไร > 0 ให้ 20% ถ้าติดลบให้เป็น 0)
                 let estProfit = m.revenue - m.cost;
                 let estComm = estProfit > 0 ? estProfit * 0.20 : 0;
-                commData.push(estComm);
+                commData.push(estComm); 
                 
-                deviceCountData.push(0); 
+                deviceCountData.push(m.count); 
             });
 
             document.getElementById('dashTotalCost').innerText = totalAllCost.toLocaleString();
@@ -1733,8 +1758,10 @@ if (dateVal) {
             let progress = totalAllCost > 0 ? ((totalAllRev / totalAllCost) * 100).toFixed(1) : 100;
             document.getElementById('dashProgress').innerText = `${progress}%`;
             
-            let totalEstComm = commData.reduce((a, b) => a + b, 0);
-            document.getElementById('dashEstComm').innerText = totalEstComm.toLocaleString();
+            // คำนวณประมาณการคอมมิชชั่นรวมที่กล่องสรุปด้านบน (ภาพรวมทั้งหมดต้องมีกำไร ถึงจะแสดงยอด)
+            let overallProfit = totalAllRev - totalAllCost;
+            let totalEstComm = overallProfit > 0 ? overallProfit * 0.20 : 0;
+            document.getElementById('dashEstComm').innerText = totalEstComm.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 2});
 
             const ctx = document.getElementById('monthlyChartCanvas').getContext('2d');
             if (monthlyChartInstance) {
@@ -1747,53 +1774,32 @@ if (dateVal) {
                     labels: monthLabels,
                     datasets: [
                         {
-                            label: 'ยอดเก็บได้ (Revenue)',
-                            data: revData,
-                            backgroundColor: '#3b82f6',
+                            label: 'เงินลงทุนจริง (Cost)',
+                            data: costData,
+                            backgroundColor: '#ef4444', // สีแดง
                             borderRadius: 6,
-                            order: 3,
                             yAxisID: 'y'
                         },
                         {
-                            label: 'เงินลงทุนจริง (Cost)',
-                            data: costData,
-                            backgroundColor: '#ef4444',
+                            label: 'ยอดเก็บได้ (Revenue)',
+                            data: revData,
+                            backgroundColor: '#3b82f6', // สีน้ำเงิน
                             borderRadius: 6,
-                            order: 4,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'ค่าคอมมิชชั่น (Commission)',
+                            data: commData,
+                            backgroundColor: '#f59e0b', // สีส้มเหลือง
+                            borderRadius: 6,
                             yAxisID: 'y'
                         },
                         {
                             label: 'จำนวนเครื่องที่ขาย (เครื่อง)',
                             data: deviceCountData,
-                            backgroundColor: '#10b981',
+                            backgroundColor: '#10b981', // สีเขียว
                             borderRadius: 6,
-                            order: 5,
                             yAxisID: 'y1'
-                        },
-                        {
-                            label: 'แนวโน้มกำไรสุทธิ (Trend)',
-                            data: commData,
-                            type: 'line',
-                            borderColor: '#8b5cf6',
-                            backgroundColor: '#8b5cf6',
-                            borderWidth: 3,
-                            pointRadius: 4,
-                            tension: 0.4,
-                            fill: false,
-                            order: 1,
-                            yAxisID: 'y'
-                        },
-                        {
-                            label: 'แนวโน้มยอดขาย (Trend)',
-                            data: revData,
-                            type: 'line',
-                            borderColor: '#3b82f6',
-                            borderDash: [5, 5],
-                            borderWidth: 2,
-                            tension: 0.3,
-                            fill: false,
-                            order: 2,
-                            yAxisID: 'y'
                         }
                     ]
                 },
@@ -1829,6 +1835,84 @@ if (dateVal) {
                     }
                 }
             });
+        }
+
+        // ส่งคำสั่งบันทึกสลิปไปหลังบ้าน
+        function saveSalarySnapshot(month, username, name, base, comm, advDeduct, net) {
+            Swal.fire({
+                title: 'ยืนยันปิดยอดเงินเดือน?',
+                text: `บันทึกข้อมูลของ ${month} เมื่อบันทึกแล้วจะไม่สามารถแก้ไขได้`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'ยืนยันบันทึก',
+                confirmButtonColor: '#10b981'
+            }).then(async (result) => {
+                if (result.isConfirmed) {
+                    Swal.fire({ title: 'กำลังบันทึกและตัดยอดหนี้...', didOpen: () => Swal.showLoading() });
+                    try {
+                        const res = await fetch(API_URL, {
+                            method: 'POST',
+                            body: JSON.stringify({
+                                action: 'save_salary', month: month, username: username, name: name,
+                                sale_code: currentUser.sale_code, base_salary: base, commission: comm,
+                                advance_deduct: advDeduct, net_pay: net, saved_by: currentUser.username
+                            })
+                        });
+                        const d = await res.json();
+                        if (d.status === 'success') {
+                            Swal.fire('สำเร็จ', 'บันทึกและปิดยอดเงินเดือนเรียบร้อย', 'success');
+                        } else {
+                            Swal.fire('ข้อผิดพลาด', d.message, 'error');
+                        }
+                    } catch(e) {
+                        Swal.fire('Error', 'ไม่สามารถเชื่อมต่อระบบได้', 'error');
+                    }
+                }
+            });
+        }
+
+        // เปิดหน้าต่างดูประวัติสลิปย้อนหลัง
+        async function openSalaryHistory() {
+            Swal.fire({ title: 'กำลังโหลดประวัติ...', didOpen: () => Swal.showLoading() });
+            try {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'get_salary_history', username: currentUser.username, role: currentUser.role, sale_code: currentUser.sale_code })
+                });
+                const d = await res.json();
+
+                let rows = '';
+                if (d.history && d.history.length > 0) {
+                    d.history.forEach((h) => {
+                        let dObj = new Date(h.saved_at);
+                        let dateStr = `${("0"+dObj.getDate()).slice(-2)}/${("0"+(dObj.getMonth()+1)).slice(-2)}/${dObj.getFullYear()+543}`;
+                        rows += `
+                        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:15px; margin-bottom:12px; text-align:left; display:flex; justify-content:space-between; align-items:center;">
+                            <div>
+                                <div style="font-weight:bold; color:var(--primary); font-size:16px;">${h.month}</div>
+                                <div style="font-size:13px; color:var(--gray);"><i class="fas fa-user"></i> ${h.name}</div>
+                                <div style="font-size:11px; color:#94a3b8;">อนุมัติเมื่อ: ${dateStr}</div>
+                            </div>
+                            <div style="text-align:right;">
+                                <div style="font-size:18px; font-weight:800; color:#1d4ed8;">฿${parseFloat(h.net_pay).toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
+                                <div style="font-size:12px; color:#e11d48;">หักเบิก: ฿${parseFloat(h.advance_deduct).toLocaleString()}</div>
+                            </div>
+                        </div>`;
+                    });
+                } else {
+                    rows = '<div style="text-align:center; padding:30px; color:var(--gray);">ยังไม่มีประวัติการบันทึกเงินเดือนในระบบ</div>';
+                }
+
+                Swal.fire({
+                    title: '<i class="fas fa-history"></i> ประวัติสลิปเงินเดือน',
+                    html: `<div style="max-height:450px; overflow-y:auto; padding:5px;">${rows}</div>`,
+                    width: '500px',
+                    showCloseButton: true,
+                    showConfirmButton: false
+                });
+            } catch (e) {
+                Swal.fire('Error', 'ไม่สามารถโหลดประวัติได้', 'error');
+            }
         }
     </script>
     <script>
