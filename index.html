@@ -884,10 +884,20 @@
                     const amount = parseFloat(c.amount || 0);
                     const isPaid = ['Paid', 'Close', 'รอปิดยอด'].includes(c.status);
                     const isPostponedToToday = (c.postpone_date === selectedDateThai);
-                    const isDueToday = (c.due_date === selectedDateThai);
+                    
+                    // --- ปรับปรุงลอจิกเช็ควันครบรอบชำระ (แปลงเป็นตัวเลขเพื่อป้องกันปัญหา 0 นำหน้า) ---
+                    let dueDay = (c.due_date && c.due_date !== "-") ? parseInt(c.due_date.split('/')[0], 10) : -1;
+                    let filterDay = selectedDateThai ? parseInt(selectedDateThai.split('/')[0], 10) : -1;
+                    const isExactDueToday = (c.due_date === selectedDateThai);
+                    const isCycleDueToday = (c.overdue_count > 0 && dueDay === filterDay && dueDay !== -1);
+                    const isDueToday = isExactDueToday || isCycleDueToday;
+                    // ----------------------------------------------------
+                    
                     const hasPostpone = (c.postpone_date && c.postpone_date !== "-" && c.postpone_date !== "");
                     const isPendingStatus = ['Pending_Approve', 'รอตรวจสอบ', 'รอปิดยอด', 'Pending_Central_Approve'].includes(c.status);
-                    let isTargetToday = (isPostponedToToday) || (isDueToday && !hasPostpone);
+                    
+                    // ปลดล็อกเงื่อนไข !hasPostpone ออกไป เพื่อไม่ให้ประวัติเลื่อนนัดเก่ามาบล็อกรอบดิวของวันนี้
+                    let isTargetToday = (isPostponedToToday) || isDueToday;
                     if (isTargetToday && isPaid) strictDailyCollected += amount;
                     if (c.due_date) { const parts = c.due_date.split('/'); if(parts.length === 3) { const cMonthStr = `${parts[2]}-${parts[1]}`; if (cMonthStr === selectedMonthStr && isPaid) strictMonthlyCollected += amount; } }
                     if (hidden.includes(String(c.c_no))) return;
@@ -915,18 +925,20 @@
                     else if (isPostponedToToday) { 
                         contractGroups.postpone.push(item); 
                     }
-                    else if (c.overdue_count > 0 && !isPostponeFutureOrToday) { 
-                        contractGroups.overdue.push(item); 
-                    } 
+                    // ย้ายเงื่อนไข "ถึงวันดิววันนี้" ขึ้นมาก่อน เพื่อให้ความสำคัญกับดิววันนี้มาเป็นอันดับแรก
                     else if (isTargetToday && !isPostponeFutureOrToday) { 
                         contractGroups.normal.push(item); 
+                    }
+                    // หากไม่ใช่วันนี้ แต่ยังมียอดค้างชำระ จะตกมาอยู่ช่องนี้แทน
+                    else if (c.overdue_count > 0 && !isPostponeFutureOrToday) { 
+                        contractGroups.overdue.push(item); 
                     }
                 });
             }
             updateCharts(0, strictDailyCollected, 0, strictMonthlyCollected);
             if (data.summary && data.summary.commission !== undefined) { const commEl = document.getElementById('txtCommission'); if(commEl) commEl.innerText = (data.summary.commission || 0).toLocaleString(); }
             if (contractGroups.pending.length > 0 && (currentUser.role === 'admin' || currentUser.sale_code === 'Central')) { polyContainer.innerHTML += createPolygonHtml('pending', 'รอตรวจสอบ/อนุมัติ', contractGroups.pending.length, 'poly-bg-pending', 'fas fa-clock'); }
-            polyContainer.innerHTML += createPolygonHtml('normal', 'ปกติ (วันนี้)', contractGroups.normal.length, 'poly-bg-normal', 'fas fa-calendar-check');
+            polyContainer.innerHTML += createPolygonHtml('normal', 'วันนี้', contractGroups.normal.length, 'poly-bg-normal', 'fas fa-calendar-check');
             polyContainer.innerHTML += createPolygonHtml('postpone', 'เลื่อนนัดมาวันนี้', contractGroups.postpone.length, 'poly-bg-postpone', 'fas fa-history');
             polyContainer.innerHTML += createPolygonHtml('overdue', 'เกินกำหนด', contractGroups.overdue.length, 'poly-bg-overdue', 'fas fa-exclamation-circle');
             container.innerHTML = `<div class="loading-state" style="padding:20px;">👈 คลิกที่กล่องสถานะด้านบนเพื่อดูรายการ</div>`;
@@ -981,8 +993,28 @@
                 if(canApprove) statusHtml = `<span class="status-text text-red" style="cursor:pointer;" onclick="adminApprove('${c.c_no}', ${c.row_index}, '-', '${c.last_note || ''}', 'close')">🏁 รอปิดยอด (กดอนุมัติ)</span>`; 
                 else statusHtml = `<span class="status-text text-red">🏁 รออนุมัติปิดยอด</span>`; 
             }
-            else if (c.hasPostpone) { cardClass = "card-postpone"; statusHtml = `<span class="status-text text-purple">⏰ เลื่อน: ${c.postpone_date}</span>`; } 
-            else if (c.overdue_count > 0) { cardClass = "card-overdue"; statusHtml = `<span class="status-text text-red">❗ ค้าง ${c.overdue_count} งวด</span>`; }
+            else if (c.hasPostpone) { 
+                cardClass = "card-postpone"; 
+                statusHtml = `<span class="status-text text-purple">⏰ เลื่อน: ${c.postpone_date}</span>`;
+                // ถ้าเลื่อนนัดและมียอดค้างชำระ ให้แสดงจำนวนงวดต่อท้าย
+                if (c.overdue_count > 0) {
+                    statusHtml += ` <span style="color:#ef4444; font-size:11px; margin-left:4px;">(ค้าง ${c.overdue_count} งวด)</span>`;
+                }
+            } 
+            else if (c.overdue_count > 0) { 
+                cardClass = "card-overdue"; 
+                // เช็คว่ารอบดิวตรงกับวันที่กำลังดูอยู่ (วันนี้) หรือไม่
+                let currentFilter = document.getElementById('filterDate').value;
+                let filterThai = currentFilter ? formatDateToThai(currentFilter) : formatDateToThai(new Date().toISOString().split('T')[0]);
+                let dDay = (c.due_date && c.due_date !== "-") ? parseInt(c.due_date.split('/')[0], 10) : -1;
+                let fDay = filterThai ? parseInt(filterThai.split('/')[0], 10) : -1;
+                
+                if (c.due_date === filterThai || (dDay === fDay && dDay !== -1)) {
+                    statusHtml = `<span class="status-text text-red">📅 ดิววันนี้ (ค้าง ${c.overdue_count} งวด)</span>`;
+                } else {
+                    statusHtml = `<span class="status-text text-red">❗ ค้าง ${c.overdue_count} งวด</span>`; 
+                }
+            }
             else if (isClosed) { statusHtml = `<span class="status-text text-green">✅ ปิดบัญชีแล้ว (${c.last_payment_date})</span>`; }
             
             if (hasPaymentNote) { let noteContent = linkify(c.last_note); statusHtml += `<div style="font-size:11px; color:var(--primary); background:#eff6ff; padding:6px; border-radius:6px; margin-top:4px; border:1px solid #bfdbfe; white-space:normal; word-break:break-all;">💰 ${noteContent}</div>`; }
